@@ -1,0 +1,80 @@
+{
+  "generado_en": "2026-08-29 11:00:00",
+  "video": {
+    "ancho": 1920,
+    "alto": 1080,
+    "fps": 30.0
+  },
+  "total_personas_registradas": 4,
+  "embudo_interaccion": {
+    "total_pick_ups": 3,
+    "total_put_backs": 1,
+    "tasa_rechazo_general": 0.33
+  },
+  "zonas_calientes": ["Estante_Central"],
+  "zonas_frias": ["Estante_Izquierdo"],
+  "analisis_zonas": [
+    {
+      "id": "Estante_Central",
+      "clasificacion": "caliente",
+      "visitas": 45,
+      "dwell_promedio_seg": 12.5,
+      "pick_ups": 2,
+      "put_backs": 0,
+      "tasa_rechazo": 0.0,
+      "presencia": 85,
+      "escala_dashboard": { "x": 0.5, "y": 0.4 }
+    },
+    {
+      "id": "Estante_Izquierdo",
+      "clasificacion": "fria",
+      "visitas": 10,
+      "dwell_promedio_seg": 3.2,
+      "pick_ups": 0,
+      "put_backs": 0,
+      "tasa_rechazo": 0.0,
+      "presencia": 15,
+      "escala_dashboard": { "x": 0.5, "y": 0.8 }
+    },
+    {
+      "id": "Estante_Derecho",
+      "clasificacion": "templada",
+      "visitas": 25,
+      "dwell_promedio_seg": 8.0,
+      "pick_ups": 1,
+      "put_backs": 1,
+      "tasa_rechazo": 1.0,
+      "presencia": 50,
+      "escala_dashboard": { "x": 0.8, "y": 0.5 }
+    }
+  ],
+  "detalle_por_persona": [
+    {
+      "id_persona": "P001",
+      "permanencia_estante_seg": 45,
+      "tiempo_viendo_seg": 20,
+      "interes_compra": true,
+      "alcance_estante": true,
+      "producto_adquirido": true,
+      "devolucion_estante": false,
+      "zonas_visitadas": ["Estante_Central", "Estante_Derecho"]
+    },
+    {
+      "id_persona": "P002",
+      "permanencia_estante_seg": 10,
+      "tiempo_viendo_seg": 5,
+      "interes_compra": false,
+      "alcance_estante": true,
+      "producto_adquirido": false,
+      "devolucion_estante": true,
+      "zonas_visitadas": ["Estante_Izquierdo"]
+    }
+  ],
+  "heatmap_global": [
+    [0.0, 0.1, 0.2, 0.1, 0.0],
+    [0.1, 0.5, 0.8, 0.4, 0.1],
+    [0.2, 0.8, 1.0, 0.7, 0.2],
+    [0.1, 0.4, 0.6, 0.3, 0.1],
+    [0.0, 0.1, 0.1, 0.1, 0.0]
+  ]
+}

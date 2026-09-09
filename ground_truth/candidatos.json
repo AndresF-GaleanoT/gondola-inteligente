@@ -1,0 +1,15 @@
+{
+  "video": {
+    "fps": 24.0,
+    "ancho": 1280,
+    "alto": 720
+  },
+  "nota": "Candidato generado automaticamente por el pipeline. REVISA cada evento y\ncorrige el frame/tipo/zona si hace falta. Dejar 'zona' vacio (null) hace\nque el match no exija una zona concreta. Cuando quede listo, valida con:\n  python -m app.interfaces.validar_embudo --gt C:\\Users\\andre\\Desktop\\Hackthon\\ground_truth\\candidatos.json",
+  "eventos": [
+    {
+      "frame": 167,
+      "tipo": "pick_up",
+      "zona": "Estante_Izquierdo"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+# ---------- Datos pesados / binarios (no van al repo) ----------
+# Dataset completo de videos (varios GB) - descargar por separado
+# EXCEPCION: data/ (zip reducido de tomas *_1) se sube via Git LFS
+datasets/
+!data/
+
+# Videos y resultados generados
+videos/*.mp4
+demo_annotado.mp4
+test_video.mp4
+*.mp4
+
+# Modelos YOLO (.pt) - se descargan automaticamente con ultralytics
+models/*.pt
+*.pt
+
+#---------------- Salidas de ejecucion ----------
+outputs/
+uploads/
+jobs.json
+__pycache__/
+*.pyc
+
+# Frontend - dependencias y build (se regeneran con npm)
+frontend/node_modules/
+node_modules/
+frontend/dist/
+dist/
+
+# Entrenamiento / artefactos de YOLO
+runs/
+results/
+
+# Dashboard generado a partir de generar_dashboard.py
+dashboard/dashboard.html
+
+# Scripts temporales / de descarte
+*_smoke*.py
+_smoke*.py
+
+# Configuracion del entorno de trabajo (no es parte del proyecto)
+SKILL.md
+AGENTS.md
+
+#---------------- Editor / SO ----------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
