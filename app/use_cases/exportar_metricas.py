@@ -13,6 +13,26 @@ from .. import config as cfg
 from ..domain.agente import recomendar_zona, recomendar_planograma
 
 
+def _deduplicar_eventos(eventos, claves_vistos):
+    """Filtra pick-ups/put-backs duplicados: si otro evento del MISMO tipo en la
+    MISMA zona cae dentro de VENTANA_DEDUPE_PICKUP se conserva solo el primero
+    (el tracker puede dividir un evento real en varios IDs en el mismo instante).
+    Devuelve los eventos que pasan el filtro y actualiza `claves_vistos`.
+    """
+    deduplicados = []
+    for e in eventos:
+        if e["tipo"] not in (ACCION_ADQUIRIDO, ACCION_DEVOLVIENDO):
+            deduplicados.append(e)
+            continue
+        clave = (e["tipo"], e["zona"] or "?")
+        ult = claves_vistos.get(clave)
+        if ult is not None and e["frame"] - ult <= VENTANA_DEDUPE_PICKUP:
+            continue
+        claves_vistos[clave] = e["frame"]
+        deduplicados.append(e)
+    return deduplicados
+
+
 def exportar_json_metricas(personas_estado, analizador, heatmap, fps):
     path_out = Path(JSON_METRICAS)
     path_out.parent.mkdir(parents=True, exist_ok=True)
@@ -23,31 +43,17 @@ def exportar_json_metricas(personas_estado, analizador, heatmap, fps):
     # mismo evento (misma zona en una ventana de frames) es el mismo evento real
     # dividido por el tracker; se conserva solo el primero. Asi el detalle por
     # persona y el conteo de zonas quedan coherentes.
-    _vistos_pick = {}
-    _vistos_put = {}
+    _vistos = {}
     for tid, datos in personas_estado.items():
         permanencia_seg = max(0, datos["fin_estante"] - datos["inicio_estante"]) / fps
         viendo_seg = datos["tiempo_viendo"] / fps
 
-        eventos_seg = []
-        for e in datos["eventos"]:
-            if e["tipo"] in (ACCION_ADQUIRIDO, ACCION_DEVOLVIENDO):
-                clave = e["zona"] or "?"
-                if e["tipo"] == ACCION_ADQUIRIDO:
-                    ult = _vistos_pick.get(clave)
-                    if ult is not None and e["frame"] - ult <= VENTANA_DEDUPE_PICKUP:
-                        continue
-                    _vistos_pick[clave] = e["frame"]
-                else:
-                    ult = _vistos_put.get(clave)
-                    if ult is not None and e["frame"] - ult <= VENTANA_DEDUPE_PICKUP:
-                        continue
-                    _vistos_put[clave] = e["frame"]
-            eventos_seg.append(
-                {"tipo": e["tipo"], "frame": e["frame"],
-                 "segundo": round(e["frame"] / fps, 2),
-                 "zona": e["zona"]}
-            )
+        eventos_seg = [
+            {"tipo": e["tipo"], "frame": e["frame"],
+             "segundo": round(e["frame"] / fps, 2),
+             "zona": e["zona"]}
+            for e in _deduplicar_eventos(datos["eventos"], _vistos)
+        ]
 
         trayectoria = [
             {"segundo": round(fr / fps, 2),

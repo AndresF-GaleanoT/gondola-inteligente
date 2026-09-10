@@ -77,15 +77,16 @@ class HeatmapTrafico:
         prom = self.promedio()
         if self.h == 0 or self.w == 0 or prom.size == 0:
             return [[0] * celdas for _ in range(celdas)]
-        paso_y = max(1, self.h // celdas)
-        paso_x = max(1, self.w // celdas)
-        grilla = prom[::paso_y, ::paso_x]
-        if grilla.shape[0] < celdas or grilla.shape[1] < celdas:
+        # Reduccion al tamano de la grilla cobriendo el frame COMPLETO.
+        # (El muestreo por stride + recorte anterior descartaba el borde
+        # inferior/derecho del mapa cuando h/w no eran multiplos de celdas.)
+        if prom.shape[0] < celdas or prom.shape[1] < celdas:
             p = np.zeros((celdas, celdas), dtype=np.float32)
-            p[:grilla.shape[0], :grilla.shape[1]] = grilla
+            p[:prom.shape[0], :prom.shape[1]] = prom
             grilla = p
         else:
-            grilla = grilla[:celdas, :celdas]
+            grilla = cv2.resize(prom, (celdas, celdas),
+                                interpolation=cv2.INTER_AREA)
         mx = grilla.max()
         if mx < 1e-6:
             return [[0] * celdas for _ in range(celdas)]

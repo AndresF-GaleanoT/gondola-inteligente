@@ -2,7 +2,7 @@
 # de los datos observados por el pipeline YOLO (visitas, pick-ups, rechazo,
 # dwell, presencia y clasificacion).
 
-from ..config import CLASIF_CALIENTE, CLASIF_FRIA
+from ..config import CLASIF_CALIENTE, CLASIF_TEMPLADA, CLASIF_FRIA
 
 
 def _pct(v):
@@ -32,7 +32,7 @@ def recomendar_zona(z):
                 f"{round(dwell, 1)} s de permanencia). Refuerza el stock de "
                 f"los productos más tomados y conserva el planograma actual.")
 
-    if clasif == "templada":
+    if clasif == CLASIF_TEMPLADA:
         return (f"{nombre} es intermedia ({visitas} visitas, {pick} "
                 f"interacciones). Tomar y devolver aqui confirma consideracion "
                 f"del surtido: ubica en el tercio medio del estante un SKU "

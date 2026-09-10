@@ -19,6 +19,34 @@ from ..infrastructure.vision import DetectorPoseYObjetos, CapturaVideo
 from .exportar_metricas import exportar_json_metricas
 
 
+def _procesar_frame(detector, frame, fi, personas_estado, analizador, zonas,
+                    historial, heatmap=None):
+    """Deteccion + actualizacion de estado de un frame procesado.
+
+    Devuelve (results, etiquetas). Ordena el tracking de personas ANTES que el
+    detector de "objeto en mano": sin personas no puede haber objeto en mano,
+    asi que se ahorra esa inference en los frames vacios (suele ser la mayoria
+    de un video de pasillo/caja).
+    """
+    results = detector.rastrear_personas(frame)
+    cajas = results[0].boxes
+    n_personas = 0
+    if cajas is not None and cajas.xyxy is not None:
+        n_personas = len(cajas.xyxy)
+        if heatmap is not None:
+            heatmap.acumular(cajas.xyxy.cpu().numpy())
+
+    if n_personas:
+        cajas_objetos = detector.detectar_objetos(frame)
+    else:
+        cajas_objetos = np.empty((0, 4))
+
+    etiquetas = procesar_personas(results, cajas_objetos, personas_estado,
+                                  analizador, fi, zonas=zonas,
+                                  historial=historial)
+    return results, etiquetas
+
+
 def procesar_video(mostrar_ventana=True, ruta_video=None, emitir_marco=None,
                    guardar_frames=None, emitir_progreso=None):
     """Ejecuta el pipeline completo y devuelve un dict-resumen de metricas.
@@ -93,17 +121,9 @@ def procesar_video(mostrar_ventana=True, ruta_video=None, emitir_marco=None,
                 analizador = AnalizadorZonas(zonas)
                 heatmap = HeatmapTrafico(frame.shape[1], frame.shape[0])
 
-            cajas_objetos = detector.detectar_objetos(frame)
-            results = detector.rastrear_personas(frame)
-
-            cajas = results[0].boxes
-            if cajas is not None and cajas.xyxy is not None:
-                heatmap.acumular(cajas.xyxy.cpu().numpy())
-
-            etiquetas = procesar_personas(results, cajas_objetos,
-                                          personas_estado, analizador, fi,
-                                          zonas=zonas,
-                                          historial=personas_historial)
+            results, etiquetas = _procesar_frame(
+                detector, frame, fi, personas_estado, analizador, zonas,
+                personas_historial, heatmap=heatmap)
 
             if render_visual:
                 # Render para pantalla y/o stream: anonimizado, plot de YOLO,

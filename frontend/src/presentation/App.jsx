@@ -1,10 +1,9 @@
 // ============================================================================
-// PRESENTATION / App - componente de UI del dashboard (arquitectura limpia).
-// La logica pura vive en domain/, los casos de uso en application/.
+// PRESENTATION / App - dashboard estilo editorial (Frontend OpcionB).
+// Logica pura en domain/, casos de uso en application/.
 // ============================================================================
 
-import { lazy, Suspense, useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import simpleheat from 'simpleheat';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import '../App.css';
 import {
   zoneView,
@@ -14,40 +13,19 @@ import {
 } from '../domain/zones';
 import { analizarZona, sugerirPlanograma } from '../domain/agente';
 import { cargarDatos, subirVideo, obtenerEstado } from '../application/api';
-// three.js (~600 KB) se carga bajo demanda, cuando el plano esta a la vista:
-// el resto del dashboard ya no paga ese peso en el primer paint.
-const HabboFloor = lazy(() => import('./HabboFloor'));
-import { LAYOUT_DEFAULT } from '../domain/layout';
 
-// Margen (en pixeles) para que el resplandor del heatmap respire dentro del
-// pasillo sin invadir las gondolas.
-const AISLE_MARGIN = 8;
-
-// Orden de areas CSS tal como las reporta HabboFloor, derivado del layout.
-  const GONDOLA_ORDEN = LAYOUT_DEFAULT.zonaAGondola.map((z) => z.area);
+const ZONE_TEMP_MAP = {
+  caliente: 'hot',
+  templada: 'warm',
+  fria: '',
+};
 
 export default function App() {
-  const canvasRef = useRef(null);
-  const containerRef = useRef(null);
-  const liveStreamRef = useRef(null);
-  const ultimaDibujadaRef = useRef(null);
-  const [aisles, setAisles] = useState([]);
-  const [gondolas, setGondolas] = useState([]);
-  const [activeZone, setActiveZone] = useState(null);
+  const [, setActiveZone] = useState(null);
   const [zoneData, setZoneData] = useState([]);
-  const [heatMatrix, setHeatMatrix] = useState([]);
-  const [activeView, setActiveView] = useState('overview');
+  const [activeView, setActiveView] = useState('summary');
   const [evidences, setEvidences] = useState([]);
   const [analysisMeta, setAnalysisMeta] = useState({ generadoEn: null, videoInfo: null });
-
-  // Rect en px de la gondola 3D de una zona (segun el orden de GONDOLAS que
-  // reporta HabboFloor). Si el plano aun no lo tiene, se usa el clip-path CSS.
-  const zoneRect = (area) => {
-    const idx = GONDOLA_ORDEN.indexOf(area);
-    const rect = idx >= 0 ? gondolas[idx] : undefined;
-    if (!rect) return {};
-    return { left: rect.x, top: rect.y, width: rect.w, height: rect.h, clipPath: 'none' };
-  };
   const [recomendaciones, setRecomendaciones] = useState(null);
   const [visitors, setVisitors] = useState(0);
   const [pickups, setPickups] = useState(0);
@@ -55,26 +33,15 @@ export default function App() {
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState('');
   const [analysisProgress, setAnalysisProgress] = useState(0);
-  const [dark, setDark] = useState(() => {
-    // Preferencia persistida; si no hay, se respeta el tema del SO.
-    try {
-      const saved = localStorage.getItem('gondola-theme');
-      if (saved === 'dark' || saved === 'light') return saved === 'dark';
-    } catch { /* sin localStorage (entornos restrictivos) */ }
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
-  });
   const [demoMode, setDemoMode] = useState(false);
-  // Marca de refresco del video anotado: cambia con cada analisis para que el
-  // navegador no use la version cacheada.
   const [videoTick, setVideoTick] = useState(() => Date.now());
-  // "Vision de las gondolas": fotogramas anotados por el pipeline YOLO que se
-  // reproducen como secuencia animada (los navegadores no decodifican el codec
-  // mp4v del OpenCV, asi que no se usa <video> sino una galeria de JPEGs).
+  const [toast, setToast] = useState('');
+  const [toastVisible, setToastVisible] = useState(false);
+
   const [vision, setVision] = useState({ frames: [], fps: 24, stride: 2 });
   const [visionIdx, setVisionIdx] = useState(0);
   const [visionPlay, setVisionPlay] = useState(false);
 
-  // Al cambiar videoTick (analisis recien terminado) se recarga el indice.
   useEffect(() => {
     let activo = true;
     fetch(`/api/vision-frames?v=${videoTick}`)
@@ -90,8 +57,6 @@ export default function App() {
     return () => { activo = false; };
   }, [videoTick]);
 
-  // Avance de la secuencia a la cadencia real del video: cada fotograma
-  // guardado equivale a `stride` fotogramas del video original.
   useEffect(() => {
     if (!visionPlay || !vision.frames.length) return;
     const dt = (vision.stride || 2) * 1000 / (vision.fps || 24);
@@ -101,12 +66,11 @@ export default function App() {
     return () => clearInterval(timer);
   }, [visionPlay, vision]);
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-    try {
-      localStorage.setItem('gondola-theme', dark ? 'dark' : 'light');
-    } catch { /* sin localStorage */ }
-  }, [dark]);
+  const showToast = useCallback((msg) => {
+    setToast(msg);
+    setToastVisible(true);
+    setTimeout(() => setToastVisible(false), 2600);
+  }, []);
 
   const interactionRate = useMemo(
     () => calcInteractionRate(visitors, pickups),
@@ -115,23 +79,6 @@ export default function App() {
 
   const rejectionRate = useMemo(() => calcRejectionRate(zoneData), [zoneData]);
 
-  const evidenceCards = useMemo(() => evidences.map((evidence) => {
-    const targetFrame = Number(evidence.frame) || 0;
-    let nearest = null;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-    vision.frames.forEach((name) => {
-      const frame = Number(name.match(/(\d+)/)?.[1]);
-      const distance = Math.abs(frame - targetFrame);
-      if (Number.isFinite(frame) && distance < nearestDistance) {
-        nearest = name;
-        nearestDistance = distance;
-      }
-    });
-    return { ...evidence, image: nearest, nearestDistance };
-  }), [evidences, vision.frames]);
-
-  // Traduce ids crudos del pipeline (Estante_Inferior...) a los nombres que la
-  // web muestra (Góndola izquierda...).
   const conNombresVisibles = (texto = '') =>
     Object.entries(ZONE_NAME_MAP).reduce(
       (t, [raw, visible]) => t.split(raw).join(visible),
@@ -139,8 +86,6 @@ export default function App() {
     );
 
   const planograma = useMemo(() => {
-    // Preferimos la propuesta calculada por el pipeline (motor del backend);
-    // si el JSON es viejo o no la trae, cae al agente local.
     return conNombresVisibles(
       recomendaciones?.planograma?.texto || sugerirPlanograma(zoneData)
     );
@@ -160,6 +105,37 @@ export default function App() {
       recomendaciones?.por_zona?.[zone.rawId] || analizarZona(zone)
     );
 
+  const recentEvents = useMemo(() => {
+    return evidences.slice(-5).reverse().map((e) => {
+      const seg = Number(e.segundo || 0);
+      const min = Math.floor(seg / 60);
+      const sec = (seg % 60).toFixed(0).padStart(2, '0');
+      return {
+        time: `${min}:${sec}`,
+        label: e.tipo === 'Devolver el producto' ? 'Producto adquirido' : 'Mano en estante',
+        zona: conNombresVisibles(e.zona || 'Zona sin identificar'),
+        id: e.idPersona,
+      };
+    });
+  }, [evidences]);
+
+  const evidenceRows = useMemo(() => {
+    return evidences.map((e) => {
+      const seg = Number(e.segundo || 0);
+      const min = Math.floor(seg / 60);
+      const sec = (seg % 60).toFixed(0).padStart(2, '0');
+      const isReturn = e.tipo === 'Devolver el producto';
+      return {
+        id: `ID ${String(e.idPersona).padStart(2, '0')}`,
+        time: `${min}:${sec}`,
+        label: isReturn ? 'Producto devuelto' : 'Mano en estante',
+        zona: conNombresVisibles(e.zona || 'Zona sin identificar'),
+        badge: isReturn ? 'Devolución' : 'Contacto',
+        isTransit: false,
+      };
+    });
+  }, [evidences]);
+
   const aplicarDatos = useCallback((data) => {
     setVisitors(data.visitors);
     setPickups(data.pickups);
@@ -167,7 +143,6 @@ export default function App() {
     setRecomendaciones(data.recomendaciones);
     setEvidences(data.evidencias || []);
     setAnalysisMeta({ generadoEn: data.generadoEn, videoInfo: data.videoInfo });
-    if (data.heatMatrix.length) setHeatMatrix(data.heatMatrix);
     setDemoMode(data.origen === 'demo');
     setVideoTick(Date.now());
   }, []);
@@ -176,7 +151,7 @@ export default function App() {
     try {
       return await cargarDatos();
     } catch (error) {
-      console.error('Error cargando los datos reales:', error);
+      console.error('Error cargando datos:', error);
       return null;
     }
   }, []);
@@ -189,8 +164,20 @@ export default function App() {
     return () => { activo = false; };
   }, [loadData, aplicarDatos]);
 
-  const handleUpload = async (e) => {
-    e.preventDefault();
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0] || null;
+    if (file && file.size > 500 * 1024 * 1024) {
+      setSelectedFile(null);
+      setUploadMsg('El video supera el límite de 500 MB.');
+      e.target.value = '';
+      return;
+    }
+    setSelectedFile(file);
+    setAnalysisProgress(0);
+    setUploadMsg('');
+  };
+
+  const handleUpload = async () => {
     if (!selectedFile) {
       setUploadMsg('Selecciona un archivo de video.');
       return;
@@ -205,19 +192,12 @@ export default function App() {
       setVisitors(0);
       setPickups(0);
       setZoneData([]);
-      setHeatMatrix([]);
-      const canvas = canvasRef.current;
-      canvas?.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
-      ultimaDibujadaRef.current = null;
       setUploadMsg(`Video subido. ${res.mensaje || 'Análisis en segundo plano.'}`);
-      // El pipeline corre en background: se consulta /api/estado cada 2.5 s y,
-      // cuando termina, se recargan los datos del dashboard. Hasta 5 min
-      // (antes 60 s: un analisis largo nunca llegaba a recargar).
       for (let i = 0; i < 120; i++) {
         await new Promise((r) => setTimeout(r, 2500));
         const estado = await obtenerEstado();
         if (estado?.estado === 'error') {
-          throw new Error(estado.error || 'El procesamiento YOLO terminó con error.');
+          throw new Error(estado.error || 'Error en el procesamiento YOLO.');
         }
         if (Number.isFinite(Number(estado?.progreso_pct))) {
           const progreso = Math.round(Number(estado.progreso_pct));
@@ -229,14 +209,15 @@ export default function App() {
           if (data) {
             aplicarDatos(data);
             setAnalysisProgress(100);
-            setUploadMsg('Análisis completado: el dashboard muestra los datos del video.');
+            setUploadMsg('Análisis completado.');
+            showToast('Análisis actualizado. Las métricas están listas.');
           } else {
             throw new Error('El análisis terminó, pero no produjo métricas válidas.');
           }
           break;
         }
         if (i === 119) {
-          throw new Error('El análisis superó el tiempo máximo de espera de 5 minutos.');
+          throw new Error('Tiempo máximo de espera superado (5 min).');
         }
       }
     } catch (err) {
@@ -246,691 +227,317 @@ export default function App() {
     }
   };
 
-  const drawHeatmap = useCallback(() => {
-    if (!canvasRef.current || !containerRef.current || !heatMatrix.length) return;
-    try {
-      const cont = containerRef.current;
-      const canvas = canvasRef.current;
-      const w = cont.clientWidth;
-      const h = cont.clientHeight;
-      if (!w || !h) return;
-
-      // Validacion defensiva: la grilla del backend llega como array 2D
-      // [filas=Y][columnas=X]. Si viene plana o vacia, no se dibuja (antes
-      // asumia filas/cols y podia reventar con NaN).
-      const rows = heatMatrix.length;
-      const first = heatMatrix[0];
-      if (!Array.isArray(first)) return;
-      const cols = first.length;
-      if (!rows || !cols) return;
-
-      // Evita redibujos inecesarios (p. ej. cada resize de la ventana): solo
-      // se vuelve a pintar si cambian las dimensiones, la matriz o la
-      // geometria de los pasillos 3D. La firma se actualiza DESPUES de
-      // dibujar con exito, para no "marcar como pintado" un intento fallido
-      // o incompleto (p. ej. sin pasillos o sin puntos validos).
-      const firma = JSON.stringify([w, h, aisles.map((a) => [a.x, a.y, a.w, a.h])]);
-      const cach_ = ultimaDibujadaRef.current;
-      if (cach_ && cach_.firma === firma && cach_.data === heatMatrix) return;
-
-      canvas.width = w;
-      canvas.height = h;
-
-      const cellWidth = canvas.width / cols;
-      const cellHeight = canvas.height / rows;
-
-      // Un punto es valido solo si cae dentro de alguno de los pasillos 3D.
-      const insideAisles = (px, py) =>
-        aisles.some((a) => (
-          px >= a.x + AISLE_MARGIN &&
-          px <= a.x + a.w - AISLE_MARGIN &&
-          py >= a.y + AISLE_MARGIN &&
-          py <= a.y + a.h - AISLE_MARGIN
-        ));
-
-      const points = [];
-      let maxVal = 0;
-
-      // Orientacion: row -> eje Y (arriba a abajo), col -> eje X, tal como la
-      // exporta el backend (grilla[Y][X]).
-      for (let r = 0; r < rows; r++) {
-        const fila = heatMatrix[r];
-        if (!Array.isArray(fila)) continue;
-        for (let c = 0; c < cols; c++) {
-          const val = Number(fila[c]) || 0;
-          if (val > 0) {
-            const px = Math.round((c * cellWidth) + (cellWidth / 2));
-            const py = Math.round((r * cellHeight) + (cellHeight / 2));
-            if (insideAisles(px, py)) {
-              points.push([px, py, val]);
-              if (val > maxVal) maxVal = val;
-            }
-          }
-        }
-      }
-
-      if (!points.length) return;
-
-      // simpleheat hace getImageData en cada draw; crear el contexto con
-      // willReadFrequently evita el warning de "multiple readback operations".
-      canvas.getContext('2d', { willReadFrequently: true });
-
-      const heat = simpleheat(canvas);
-      heat.clear();
-      heat.data(points);
-      // Max DINAMICO (antes 100 fijo): el backend normaliza 0-100, pero si
-      // llegase 0-255 o 0-1 el color no debe saturarse en un valor incorrecto.
-      heat.max(maxVal);
-      // Radio de difusion en px: la grilla ahora es mas fina (96x96), asi que
-      // un radio menor conserva los focos localizados en vez de mancharlos.
-      heat.radius(36, 26);
-      heat.draw();
-      // Solo se cachea tras dibujar con exito.
-      ultimaDibujadaRef.current = { firma, data: heatMatrix };
-    } catch (err) {
-      console.error('Error rendering heatmap:', err);
-    }
-  }, [heatMatrix, aisles]);
-
-  useEffect(() => {
-    if (activeView !== 'spatial') return undefined;
-    const timer = setTimeout(() => drawHeatmap(), 100);
-    return () => clearTimeout(timer);
-  }, [drawHeatmap, activeView]);
-
-  // Redibuja el heatmap cuando el contenedor cambia de tamaño (p. ej. tras
-  // entrar a la pestaña o redimensionar la ventana), usando la última matriz.
-  useEffect(() => {
-    if (activeView !== 'spatial') return undefined;
-    const cont = containerRef.current;
-    if (!cont) return undefined;
-    const ro = new ResizeObserver(() => drawHeatmap());
-    ro.observe(cont);
-    return () => ro.disconnect();
-  }, [drawHeatmap, activeView]);
-
   const changeView = (view) => {
-    if (view === 'spatial') {
-      // La vista crea un canvas nuevo. Se invalida la firma anterior para que
-      // el mapa vuelva a pintarse aunque conserve datos y dimensiones.
-      ultimaDibujadaRef.current = null;
-    }
     setActiveView(view);
     setActiveZone(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const openFullscreen = async (ref) => {
-    const element = ref.current;
-    if (!element) return;
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await element.requestFullscreen();
-    } catch (error) {
-      console.error('No se pudo cambiar a pantalla completa:', error);
-    }
-  };
-
-  const viewContent = {
-    overview: ['Panel de analítica retail', 'Inteligencia de góndola', 'Convierte el movimiento de la tienda en decisiones claras de exhibición.'],
-    spatial: ['Analítica espacial', 'Distribución espacial', 'Explora el tráfico, la permanencia y la interacción en cada zona.'],
-    evidence: ['Auditoría visual', 'Evidencias de interacción', 'Verifica cada evento detectado en el fotograma correspondiente.'],
-    report: ['Documento ejecutivo', 'Reporte de analítica retail', 'Consulta la vista previa y exporta los resultados en formato PDF.'],
-  }[activeView];
+  const fileName = selectedFile?.name || 'Seleccionar archivo de video';
 
   return (
-    <div className="layout-app">
-      <aside className="sidebar">
+    <div className="shell">
+      <aside className="rail">
         <div className="brand">
-          <span className="brand-mark">
-            <svg className="brand-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </span>
-          <span className="brand-copy">
-            <span className="brand-text">Alphanode</span>
-            <span className="brand-subtitle">Retail Intelligence</span>
-          </span>
+          <div className="brand-mark">A</div>
+          <div className="brand-copy">
+            <strong>AlphaNode</strong>
+            <span>RETAIL LAB</span>
+          </div>
         </div>
-
-        <nav className="nav-menu" aria-label="Secciones del panel">
-          <button
-            type="button"
-            className={`nav-item${activeView === 'overview' ? ' active' : ''}`}
-            onClick={() => changeView('overview')}
-            aria-current={activeView === 'overview' ? 'page' : undefined}
-            title="Análisis principal"
-          >
-            <svg className="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 13h6V4H4v9zm0 7h6v-4H4v4zm10 0h6v-9h-6v9zm0-16v4h6V4h-6z" />
-            </svg>
-            <span className="nav-copy">
-              <strong>Análisis principal</strong>
-              <small>Indicadores y monitoreo</small>
-            </span>
-          </button>
-          <button
-            type="button"
-            className={`nav-item${activeView === 'spatial' ? ' active' : ''}`}
-            onClick={() => changeView('spatial')}
-            aria-current={activeView === 'spatial' ? 'page' : undefined}
-            title="Distribución espacial"
-          >
-            <svg className="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-            </svg>
-            <span className="nav-copy">
-              <strong>Distribución espacial</strong>
-              <small>Mapa de calor y zonas</small>
-            </span>
-          </button>
-          <button
-            type="button"
-            className={`nav-item${activeView === 'evidence' ? ' active' : ''}`}
-            onClick={() => changeView('evidence')}
-            aria-current={activeView === 'evidence' ? 'page' : undefined}
-            title="Evidencias de interacción"
-          >
-            <svg className="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.55-2.28A1 1 0 0121 8.62v6.76a1 1 0 01-1.45.9L15 14M5 6h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z" />
-            </svg>
-            <span className="nav-copy">
-              <strong>Evidencias</strong>
-              <small>Tomas y devoluciones</small>
-            </span>
-          </button>
-          <button
-            type="button"
-            className={`nav-item${activeView === 'report' ? ' active' : ''}`}
-            onClick={() => changeView('report')}
-            aria-current={activeView === 'report' ? 'page' : undefined}
-            title="Reporte descargable"
-          >
-            <svg className="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 3h7l4 4v14H7V3zm7 0v5h5M10 13h5m-5 4h5" />
-            </svg>
-            <span className="nav-copy">
-              <strong>Reporte</strong>
-              <small>Vista previa y PDF</small>
-            </span>
-          </button>
+        <nav className="nav">
+          {[
+            ['summary', '01', 'Lectura general'],
+            ['spatial', '02', 'Plano de tienda'],
+            ['evidence', '03', 'Evidencias'],
+            ['report', '04', 'Informe'],
+          ].map(([id, num, label]) => (
+            <button
+              key={id}
+              className={`nav-button${activeView === id ? ' active' : ''}`}
+              onClick={() => changeView(id)}
+            >
+              <b>{num}</b>
+              <span>{label}</span>
+            </button>
+          ))}
         </nav>
-
-       
-
-        <div className="theme-toggle-wrap">
-          <button
-            type="button"
-            className="theme-toggle"
-            onClick={() => setDark((d) => !d)}
-            title={dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
-          >
-            <span className="theme-toggle-icon">
-              {dark
-                ? (
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v2m0 14v2m9-9h-2M5 12H3m14.36-6.36l-1.42 1.42M7.06 17.65l-1.42 1.42m12.72 0l-1.42-1.42M7.06 6.36l-1.42-1.42M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                )
-                : (
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                  </svg>
-                )}
-            </span>
-            <span>{dark ? 'Tema claro' : 'Tema oscuro'}</span>
-          </button>
-        </div>
-
-        <div className="privacy-box">
-          <svg className="privacy-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          </svg>
-          <p className="privacy-title">Privacidad por diseño</p>
-          <p className="privacy-text">Los rostros se anonimizan y el video original se elimina al terminar. No se generan datos biométricos.</p>
+        <div className="rail-foot">
+          <p className="privacy">Privacidad por diseño</p>
+          <p>Sin reconocimiento facial, emociones ni datos biométricos.</p>
+          <p>AlphaNode · HackTech 5.0</p>
         </div>
       </aside>
 
-      <main className="main-content">
-        <section className="dashboard-header">
-          <div>
-            <p className="eyebrow">{viewContent[0]}</p>
-            <h1>{viewContent[1]}</h1>
-            <p className="dashboard-subtitle">{viewContent[2]}</p>
-          </div>
-        
-        </section>
-
-        {activeView === 'overview' && <>
+      <main>
         <header className="topbar">
-          <div className="kpi-card">
-            <span className="kpi-icon kpi-icon-blue">v</span>
-            <div className="kpi-copy">
-              <div className="kpi-title">Visitantes totales</div>
-              <div className="kpi-value">{visitors}</div>
-              <span className="kpi-caption">Personas identificadas</span>
-            </div>
+          <div>
+            <p className="eyebrow">Registro de comportamiento en tienda</p>
+            <h1>Góndola<br />Inteligente</h1>
           </div>
-          <div className="kpi-card">
-            <span className="kpi-icon kpi-icon-violet">t</span>
-            <div className="kpi-copy">
-              <div className="kpi-title">Tomas detectadas</div>
-              <div className="kpi-value">{pickups}</div>
-              <span className="kpi-caption">Productos retirados</span>
-            </div>
-          </div>
-          <div className="kpi-card">
-            <span className="kpi-icon kpi-icon-green">ti</span>
-            <div className="kpi-copy">
-              <div className="kpi-title">Tasa de interacción</div>
-              <div className="kpi-value text-accent">{interactionRate}%</div>
-              <span className="kpi-caption">Tomas por visitante</span>
-            </div>
-          </div>
-          <div className="kpi-card">
-            <span className="kpi-icon kpi-icon-orange">td</span>
-            <div className="kpi-copy">
-              <div className="kpi-title">Tasa de devolución</div>
-              <div className="kpi-value">{rejectionRate}%</div>
-              <span className="kpi-caption">Productos devueltos</span>
-            </div>
+          <div className="edition">
+            ANÁLISIS <strong>#GI-001</strong><br />
+            {analysisMeta.generadoEn
+              ? new Date(analysisMeta.generadoEn).toLocaleDateString('es-CO')
+              : new Date().toLocaleDateString('es-CO')}<br />
+            VIDEO PREGRABADO
           </div>
         </header>
 
-        <form className="video-upload" onSubmit={handleUpload}>
-          <div className="upload-heading">
-            <span className="upload-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 16a4 4 0 01-.9-7.9A5 5 0 0115.8 6H16a5 5 0 011 9.9M12 12V4m0 0L9 7m3-3 3 3" />
-              </svg>
-            </span>
-            <div>
-              <strong>Analizar un nuevo video</strong>
-              <p>Selecciona una grabación de hasta 500 MB.</p>
+        {/* =================== SUMMARY =================== */}
+        <section className={`page${activeView === 'summary' ? ' active' : ''}`} id="summary">
+          <div className="command">
+            <div className="command-copy">
+              <strong>Nueva lectura</strong>
+              <span>Seleccione una grabación de hasta 500 MB.</span>
             </div>
-          </div>
-          <div className="video-upload-inner">
-            <label className="video-upload-field">
-              <input
-                type="file"
-                accept="video/*,.mp4,.avi,.mov,.mkv,.webm"
-                onChange={(e) => {
-                  const archivo = e.target.files?.[0] || null;
-                  if (archivo && archivo.size > 500 * 1024 * 1024) {
-                    setSelectedFile(null);
-                    setUploadMsg('El video supera el límite permitido de 500 MB.');
-                    e.target.value = '';
-                    return;
-                  }
-                  setSelectedFile(archivo);
-                  setAnalysisProgress(0);
-                  setUploadMsg('');
-                }}
-              />
-              <span className={`upload-picker${selectedFile ? ' has-file' : ''}`}>
-                {selectedFile ? selectedFile.name : 'Seleccionar archivo de video'}
-              </span>
+            <label className="file-box" htmlFor="videoInputB">
+              <span>{fileName}</span>
             </label>
-            <button type="submit" disabled={uploading || !selectedFile}>
-              {uploading ? 'Analizando…' : 'Iniciar análisis'}
+            <input id="videoInputB" type="file" accept="video/*" hidden onChange={handleFileChange} />
+            <button className="run" onClick={handleUpload} disabled={uploading || !selectedFile}>
+              {uploading ? 'Procesando…' : 'Analizar video'}
             </button>
           </div>
-          {uploadMsg && <p className="video-upload-msg">{uploadMsg}</p>}
+
+          {uploadMsg && <p className="upload-msg">{uploadMsg}</p>}
           {uploading && (
-            <div className="analysis-progress-wrap">
-              <div className="analysis-progress-copy">
-                <span>{analysisProgress < 25 ? 'Preparando el video' : analysisProgress < 80 ? 'Detectando personas e interacciones' : 'Generando métricas y evidencias'}</span>
-                <strong>{analysisProgress}%</strong>
-              </div>
-              <div
-                className="analysis-progress"
-                role="progressbar"
-                aria-label="Progreso del análisis"
-                aria-valuemin="0"
-                aria-valuemax="100"
-                aria-valuenow={analysisProgress}
-              >
+            <div className="upload-progress">
+              <div className="upload-progress-bar">
                 <span style={{ width: `${analysisProgress}%` }} />
               </div>
+              <p className="upload-progress-text">{analysisProgress}%</p>
             </div>
           )}
           {demoMode && (
-            <p className="demo-notice">
-              Mostrando datos de ejemplo: el backend no tiene métricas previas.
-            </p>
+            <p className="upload-msg">Mostrando datos de ejemplo: el backend no tiene métricas previas.</p>
           )}
-        </form>
 
-        <div className="view-container">
-          <div className="live-stream-card">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Monitoreo visual</p>
-                <h2>Visión de las góndolas</h2>
+          <div className="metric-strip">
+            <article className="metric">
+              <span className="metric-label">Visitantes únicos</span>
+              <strong className="metric-value">{visitors}</strong>
+              <span className="metric-note">Personas anónimas</span>
+            </article>
+            <article className="metric">
+              <span className="metric-label">Tomas detectadas</span>
+              <strong className="metric-value">{pickups}</strong>
+              <span className="metric-note">Productos retirados</span>
+            </article>
+            <article className="metric">
+              <span className="metric-label">Tasa de interacción</span>
+              <strong className="metric-value">{interactionRate}%</strong>
+              <span className="metric-note">Tomas por visitante</span>
+            </article>
+            <article className="metric">
+              <span className="metric-label">Tasa de devolución</span>
+              <strong className="metric-value">{rejectionRate}%</strong>
+              <span className="metric-note">Put-back / pick-up</span>
+            </article>
+          </div>
+
+          <div className="stage">
+            <div className="stage-main">
+              <div className="section-head">
+                <h2>Escena analizada</h2>
+                <span className="live">Pipeline activo</span>
               </div>
-              <div className="section-actions">
-                <span className="live-badge"><span /> Pipeline YOLO</span>
-                <button type="button" className="expand-button" onClick={() => openFullscreen(liveStreamRef)} title="Ampliar monitoreo">⛶ <span>Ampliar</span></button>
-              </div>
-            </div>
-            <div className="live-stream-box" ref={liveStreamRef}>
-              {vision.frames.length ? (
-                <>
+              {vision.frames.length > 0 ? (
+                <div className="observation vision-panel" aria-label="Visión de las góndolas">
                   <img
                     className="vision-video"
                     src={`/vision-frames/${vision.frames[visionIdx] || ''}?v=${videoTick}`}
-                    alt="Visión de las góndolas (pipeline YOLO)"
+                    alt="Visión de las góndolas"
                   />
                   <div className="vision-controls">
-                    <button type="button"
-                            onClick={() => setVisionPlay((p) => !p)}>
+                    <button type="button" onClick={() => setVisionPlay((p) => !p)}>
                       {visionPlay ? '⏸ Pausa' : '▶ Reproducir'}
                     </button>
-                    <span>
-                      Fotograma {visionIdx + 1} / {vision.frames.length}
-                    </span>
+                    <span>Fotograma {visionIdx + 1} / {vision.frames.length}</span>
                     <button type="button" onClick={() => setVisionIdx(0)}>
                       Reiniciar
                     </button>
                   </div>
-                </>
+                  <span className="frame-counter" style={{ bottom: 58 }}>
+                    FOTOGRAMA {visionIdx + 1} / {vision.frames.length}
+                  </span>
+                </div>
               ) : (
-                <p className="vision-fallback">
-                  La visión de las góndolas se generará al ejecutar el análisis
-                  (sube un video o usa los datos existentes).
-                </p>
-              )}
-              <p className="live-stream-msg">
-                Pipeline YOLO: zonas, mano/agarro y personas detectadas
-                fotograma a fotograma. Rostros pixelados por privacidad.
-              </p>
-            </div>
-          </div>
-        </div>
-        </>}
-
-        {activeView === 'spatial' && (
-          <div className="spatial-layout">
-            <div className="chart-column">
-              <div className="section-heading compact">
-                <div>
-                  <p className="eyebrow">Distribución espacial</p>
-                  <h2>Mapa de calor</h2>
-                </div>
-                <div className="section-actions">
-                  <span className="heat-legend"><i /> Mayor actividad</span>
-                  <button type="button" className="expand-button" onClick={() => openFullscreen(containerRef)} title="Ampliar mapa">⛶ <span>Ampliar</span></button>
-                </div>
-              </div>
-              <div className="heatmap-box">
-                <div className="heatmap-container" ref={containerRef}>
-                  <Suspense fallback={<div className="habbo-floor" />}>
-                    <HabboFloor onAisles={setAisles} onGondolas={setGondolas} config={LAYOUT_DEFAULT} />
-                  </Suspense>
-                  <canvas ref={canvasRef} className="heatmap-canvas" />
-
-                  {zoneData.map((zone) => {
-                    // Zona sin area conocido (id no mapeado o fuera de layout):
-                    // no se pinta overlay 3D, para que un div a pantalla completa
-                    // no tape los hovers del plano. Sigue visible en el panel.
-                    if (!zone.area) return null;
-                    const view = zoneView(zone);
-                    const isActive = activeZone?.title === zone.id;
-
-                    return (
-                      <div
-                        key={zone.id}
-                        className={`interactive-zone ${zone.area}${isActive ? ' is-active' : ''}`}
-                        style={zoneRect(zone.area)}
-                        onMouseEnter={() => setActiveZone(view)}
-                        onMouseLeave={() => setActiveZone(null)}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <aside className="zones-panel">
-              <div className="section-heading compact">
-                <div>
-                  <p className="eyebrow">Rendimiento</p>
-                  <h2>Análisis de zonas</h2>
-                </div>
-              </div>
-
-              {planograma && (
-                <div className="zone-recommendation agente-planograma">
-                  <span className="recommendation-label">✦ Recomendación del agente</span>
-                  <p>{planograma}</p>
+                <div className="observation" style={{ display: 'grid', placeItems: 'center' }}>
+                  <p style={{ color: 'var(--muted)', fontSize: '.82rem', textAlign: 'center' }}>
+                    La visión de las góndolas se generará al ejecutar el análisis.<br />
+                    Sube un video o usa los datos existentes.
+                  </p>
                 </div>
               )}
-
-              <div className="zones-list">
-                {zoneData.map((zone) => {
-                  const view = zoneView(zone);
-                  const isActive = activeZone?.title === zone.id;
-                  return (
-                    <div
-                      key={zone.id}
-                      className={`zone-row ${isActive ? 'is-active' : ''}`}
-                      onMouseEnter={() => setActiveZone(view)}
-                      onMouseLeave={() => setActiveZone(null)}
-                    >
-                      <div className="zone-row-head">
-                        <span className="zone-row-title">{zone.id}</span>
-                        <span className={`status-indicator indicator-${view.tono}`}>
-                          {view.etiqueta}
-                        </span>
-                      </div>
-                      <div className="zone-row-stats">
-                        <div className="zone-stat"><span>Entradas a la zona</span><strong>{zone.visits}</strong></div>
-                        <div className="zone-stat"><span>Interacción</span><strong>{zone.pick_ups}</strong></div>
-                        <div className="zone-stat"><span>Devolución</span><strong>{view.rejection}</strong></div>
-                        <div className="zone-stat"><span>Permanencia</span><strong>{Number.isFinite(zone.dwell) ? `${zone.dwell.toFixed(1)} s` : '0.0 s'}</strong></div>
-                        <div className="zone-stat"><span>Presencia</span><strong>{zone.presencia}</strong></div>
-                      </div>
-
-                      {isActive && (
-                        <div className="zone-recommendation">
-                          <strong>Agente</strong>
-                          {sugerenciaZona(zone)}
-                        </div>
-                      )}
+            </div>
+            <aside className="stage-side">
+              <div className="event-head">
+                <p>Secuencia verificada</p>
+                <h3>Eventos recientes</h3>
+              </div>
+              <ol className="event-list">
+                {recentEvents.length > 0 ? recentEvents.map((evt, i) => (
+                  <li key={i}>
+                    <time>{evt.time}</time>
+                    <div>
+                      <strong>{evt.label}</strong>
+                      <span>ID {String(evt.id).padStart(2, '0')} · {evt.zona}</span>
                     </div>
-                  );
-                })}
-              </div>
+                  </li>
+                )) : (
+                  <li>
+                    <time>--:--</time>
+                    <div>
+                      <strong>Sin eventos</strong>
+                      <span>Analiza un video para ver eventos</span>
+                    </div>
+                  </li>
+                )}
+              </ol>
+              {planograma && (
+                <div className="callout">
+                  <b>Lectura comercial</b>
+                  {planograma}
+                </div>
+              )}
             </aside>
           </div>
-        )}
+        </section>
 
-        {activeView === 'evidence' && (
-          <section className="evidence-view">
-            <div className="evidence-summary">
-              <div>
-                <span>Eventos documentados</span>
-                <strong>{evidenceCards.length}</strong>
-              </div>
-              <div>
-                <span>Tomas</span>
-                <strong>{evidenceCards.filter((item) => item.tipo === 'Producto Adquirido').length}</strong>
-              </div>
-              <div>
-                <span>Devoluciones</span>
-                <strong>{evidenceCards.filter((item) => item.tipo === 'Devolver el producto').length}</strong>
-              </div>
-            </div>
-
-            {evidenceCards.length ? (
-              <div className="evidence-grid">
-                {evidenceCards.map((evidence, index) => {
-                  const isReturn = evidence.tipo === 'Devolver el producto';
-                  return (
-                    <article className="evidence-card" key={`${evidence.idPersona}-${evidence.frame}-${evidence.tipo}-${index}`}>
-                      <div className="evidence-image-wrap">
-                        {evidence.image ? (
-                          <img
-                            src={`/vision-frames/${evidence.image}?v=${videoTick}`}
-                            alt={`${evidence.tipo} detectado en el segundo ${evidence.segundo}`}
-                          />
-                        ) : (
-                          <div className="evidence-image-empty">Fotograma no disponible</div>
-                        )}
-                        <span className={`evidence-type${isReturn ? ' is-return' : ''}`}>
-                          {isReturn ? 'Devolución' : 'Toma de producto'}
-                        </span>
-                      </div>
-                      <div className="evidence-body">
-                        <div className="evidence-title-row">
-                          <div>
-                            <p className="eyebrow">Evidencia #{index + 1}</p>
-                            <h2>{conNombresVisibles(evidence.zona || 'Zona sin identificar')}</h2>
-                          </div>
-                          <span className="evidence-validation"><i /> Detección temporal</span>
-                        </div>
-                        <dl className="evidence-metadata">
-                          <div><dt>Persona</dt><dd>ID {evidence.idPersona}</dd></div>
-                          <div><dt>Segundo</dt><dd>{Number(evidence.segundo || 0).toFixed(2)} s</dd></div>
-                          <div><dt>Fotograma</dt><dd>{evidence.frame}</dd></div>
-                          <div><dt>Evento</dt><dd>{isReturn ? 'Producto devuelto' : 'Producto retirado'}</dd></div>
-                        </dl>
-                        {evidence.nearestDistance > 0 && Number.isFinite(evidence.nearestDistance) && (
-                          <p className="evidence-note">Se muestra el fotograma guardado más cercano al evento.</p>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="evidence-empty">
-                <span>◎</span>
-                <h2>Aún no hay interacciones documentadas</h2>
-                <p>Analiza un video con tomas o devoluciones para generar las evidencias.</p>
-                <button type="button" onClick={() => changeView('overview')}>Ir al análisis principal</button>
-              </div>
-            )}
-          </section>
-        )}
-
-        {activeView === 'report' && (
-          <div className="report-view">
-            <div className="report-actions">
-              <div>
-                <strong>Informe listo para exportar</strong>
-                <p>En la ventana de impresión selecciona “Guardar como PDF”.</p>
-              </div>
-              <button type="button" onClick={() => window.print()}>
-                <span>⇩</span> Exportar informe PDF
-              </button>
-            </div>
-
-            <article className="report-shell">
-              <header className="report-header">
-                <div className="report-brand">
-                  <span>ϟ</span>
-                  <div><strong>Alphanode</strong><small>Retail Intelligence</small></div>
-                </div>
-                <div className="report-date">
-                  <em>Reporte confidencial</em>
-                  <span>Fecha del análisis</span>
-                  <strong>{analysisMeta.generadoEn ? new Date(analysisMeta.generadoEn).toLocaleString('es-CO') : 'Datos de demostración'}</strong>
-                </div>
-              </header>
-
-              <section className="report-title">
-                <p>Informe ejecutivo</p>
-                <h2>Análisis de comportamiento en góndolas</h2>
-                <span>Resultados obtenidos mediante visión artificial y procesamiento temporal de eventos.</span>
-                {analysisMeta.videoInfo && (
-                  <div className="report-technical-meta">
-                    <span>Resolución {analysisMeta.videoInfo.ancho || '—'} × {analysisMeta.videoInfo.alto || '—'}</span>
-                    <span>{Number(analysisMeta.videoInfo.fps || 0).toFixed(1)} FPS</span>
-                    <span>Pipeline YOLO</span>
-                  </div>
-                )}
-              </section>
-
-              <section className="report-kpis">
-                <div className="report-kpi-purple"><span>Visitantes únicos</span><strong>{visitors}</strong><small>Personas identificadas</small></div>
-                <div className="report-kpi-blue"><span>Tomas detectadas</span><strong>{pickups}</strong><small>Productos retirados</small></div>
-                <div className="report-kpi-green"><span>Tasa de interacción</span><strong>{interactionRate}%</strong><small>Tomas por visitante</small></div>
-                <div className="report-kpi-orange"><span>Tasa de devolución</span><strong>{rejectionRate}%</strong><small>Productos devueltos</small></div>
-              </section>
-
-              <section className="report-section">
-                <div className="report-section-title"><span>01</span><h3>Resumen ejecutivo</h3></div>
-                <div className="executive-findings report-findings">
-                  <article>
-                    <span className="finding-icon finding-traffic">↗</span>
-                    <div><small>Mayor tráfico</small><strong>{executiveSummary.busiest?.id || 'Sin actividad'}</strong><p>{executiveSummary.busiest?.visits || 0} entradas registradas</p></div>
-                  </article>
-                  <article>
-                    <span className="finding-icon finding-pickup">◎</span>
-                    <div><small>Mayor interacción</small><strong>{executiveSummary.mostInteractive?.id || 'Sin tomas detectadas'}</strong><p>{executiveSummary.mostInteractive?.pick_ups || 0} productos retirados</p></div>
-                  </article>
-                  <article>
-                    <span className="finding-icon finding-result">✓</span>
-                    <div><small>Resultado</small><strong>{pickups} tomas · {executiveSummary.returns} devoluciones</strong><p>{visitors} visitantes analizados</p></div>
-                  </article>
-                </div>
-                <div className="executive-recommendation report-recommendation">
-                  <span>Recomendación comercial</span><p>{planograma}</p>
-                </div>
-              </section>
-
-              <section className="report-section">
-                <div className="report-section-title"><span>02</span><h3>Rendimiento por zona</h3></div>
-                <div className="report-table-wrap">
-                  <table className="report-table">
-                    <thead><tr><th>Zona</th><th>Entradas</th><th>Interacciones</th><th>Devoluciones</th><th>Permanencia</th><th>Clasificación</th></tr></thead>
-                    <tbody>
-                      {zoneData.map((zone) => {
-                        const view = zoneView(zone);
-                        return <tr key={zone.id}><td>{zone.id}</td><td>{zone.visits}</td><td>{zone.pick_ups}</td><td>{view.rejection}</td><td>{Number.isFinite(zone.dwell) ? `${zone.dwell.toFixed(1)} s` : '0.0 s'}</td><td>{view.etiqueta}</td></tr>;
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-
-              <section className="report-section">
-                <div className="report-section-title"><span>03</span><h3>Registro de interacciones</h3></div>
-                {evidenceCards.length ? (
-                  <div className="report-evidence-grid">
-                    {evidenceCards.map((evidence, index) => (
-                      <article key={`report-${evidence.idPersona}-${evidence.frame}-${index}`}>
-                        <div className="report-evidence-image">
-                          {evidence.image
-                            ? <img src={`/vision-frames/${evidence.image}?v=${videoTick}`} alt={`Evidencia ${index + 1}`} />
-                            : <span>Sin captura</span>}
-                          <b>{String(index + 1).padStart(2, '0')}</b>
-                        </div>
-                        <div className="report-evidence-copy">
-                          <span>{evidence.tipo === 'Devolver el producto' ? 'Devolución' : 'Toma de producto'}</span>
-                          <strong>{conNombresVisibles(evidence.zona || 'Zona sin identificar')}</strong>
-                          <p>Persona ID {evidence.idPersona} · {Number(evidence.segundo || 0).toFixed(2)} s</p>
-                          <small>Fotograma {evidence.frame} · Detección temporal</small>
-                        </div>
-                      </article>
-                    ))}
-                  </div>
-                ) : <p className="report-no-events">No se registraron tomas ni devoluciones en este análisis.</p>}
-              </section>
-
-              <footer className="report-footer">
-                <p><strong>Privacidad por diseño.</strong> Los rostros se anonimizan y no se generan datos biométricos.</p>
-                <span>Alphanode · Reporte de analítica retail</span>
-              </footer>
-            </article>
+        {/* =================== SPATIAL =================== */}
+        <section className={`page${activeView === 'spatial' ? ' active' : ''}`} id="spatial">
+          <div className="page-title">
+            <h2>Distribución espacial</h2>
+            <p>El mapa superpone la intensidad de circulación y permanencia sobre el plano configurado.</p>
           </div>
-        )}
+          <div className="spatial-grid">
+            <article className="floor-card">
+              <div className="section-head">
+                <h2>Mapa de actividad</h2>
+                <span className="legend"><i></i>Mayor intensidad</span>
+              </div>
+              <div className="floor">
+                <div className="shelf left">Góndola izquierda</div>
+                <div className="shelf center">Góndola central</div>
+                <div className="shelf right">Góndola derecha</div>
+                <i className="heat h1"></i>
+                <i className="heat h2"></i>
+                <i className="heat h3"></i>
+              </div>
+            </article>
+            <aside className="zone-ledger">
+              {zoneData.map((zone) => {
+                const view = zoneView(zone);
+                const tempClass = ZONE_TEMP_MAP[zone.classification] || '';
+                const insight = sugerenciaZona(zone);
+                return (
+                  <article
+                    key={zone.id}
+                    className="zone-row"
+                    onMouseEnter={() => setActiveZone(zone)}
+                    onMouseLeave={() => setActiveZone(null)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div className="zone-top">
+                      <h3>{zone.id}</h3>
+                      <span className={`temp${tempClass ? ' ' + tempClass : ''}`}>
+                        {view.etiqueta.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="zone-stats">
+                      <div><span>Entradas</span><b>{zone.visits}</b></div>
+                      <div><span>Tomas</span><b>{zone.pick_ups}</b></div>
+                      <div><span>Tiempo</span><b>{Number.isFinite(zone.dwell) ? `${zone.dwell.toFixed(1)}s` : '0.0s'}</b></div>
+                    </div>
+                    <p className="zone-insight">{insight}</p>
+                  </article>
+                );
+              })}
+            </aside>
+          </div>
+        </section>
 
-        <footer className="app-footer">
-          <span>Alphanode Retail Intelligence</span>
-          <span>Analítica responsable · Privacidad por diseño</span>
-        </footer>
+        {/* =================== EVIDENCE =================== */}
+        <section className={`page${activeView === 'evidence' ? ' active' : ''}`} id="evidence">
+          <div className="page-title">
+            <h2>Evidencias</h2>
+            <p>Cada evento conserva el momento, la zona y una identidad temporal anónima para facilitar la validación.</p>
+          </div>
+          {evidenceRows.length > 0 ? (
+            <div className="evidence-sheet">
+              {evidenceRows.map((row, i) => (
+                <div className="evidence-row" key={i}>
+                  <span className="id">{row.id}</span>
+                  <time>{row.time}</time>
+                  <div>
+                    <strong>{row.label}</strong>
+                    <small>{row.zona} · fotograma</small>
+                  </div>
+                  <span className={`badge${row.isTransit ? ' transit' : ''}`}>
+                    {row.badge}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="evidence-empty">
+              <h2>Aún no hay interacciones documentadas</h2>
+              <p>Analiza un video con tomas o devoluciones para generar las evidencias.</p>
+            </div>
+          )}
+        </section>
+
+        {/* =================== REPORT =================== */}
+        <section className={`page${activeView === 'report' ? ' active' : ''}`} id="report">
+          <div className="page-title">
+            <h2>Informe ejecutivo</h2>
+            <p>Resumen listo para compartir con el equipo de space management.</p>
+          </div>
+          <div className="report-sheet">
+            <article className="report-lead">
+              <p className="eyebrow">Recomendación comercial</p>
+              <h3>Redistribuir el facing según interés observado.</h3>
+              <p>{planograma || 'Analiza un video para obtener recomendaciones personalizadas.'}</p>
+              <button className="download" onClick={() => window.print()}>
+                Imprimir / guardar PDF
+              </button>
+            </article>
+            <div className="report-list">
+              <div className="report-item">
+                <b>Hallazgo principal</b>
+                <p>
+                  {executiveSummary.busiest
+                    ? `La ${executiveSummary.busiest.id} concentra la mayor actividad con ${executiveSummary.busiest.visits} entradas.`
+                    : 'Sin datos suficientes aún.'}
+                </p>
+              </div>
+              <div className="report-item">
+                <b>Oportunidad</b>
+                <p>
+                  {executiveSummary.mostInteractive
+                    ? `${executiveSummary.mostInteractive.id} registra ${executiveSummary.mostInteractive.pick_ups} tomas de producto.`
+                    : 'No se detectaron tomas en el análisis actual.'}
+                </p>
+              </div>
+              <div className="report-item">
+                <b>Resultado</b>
+                <p>
+                  {pickups} tomas · {executiveSummary.returns} devoluciones
+                  {visitors > 0 ? ` — ${visitors} visitantes analizados` : ''}.
+                </p>
+              </div>
+              <div className="report-item">
+                <b>Privacidad</b>
+                <p>Los IDs son temporales; no se identifican rostros, emociones ni información biométrica.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className={`toast${toastVisible ? ' show' : ''}`} role="status" aria-live="polite">
+          {toast}
+        </div>
       </main>
     </div>
   );

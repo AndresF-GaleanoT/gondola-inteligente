@@ -24,7 +24,8 @@ from ..config import (ACCION_ADQUIRIDO, ACCION_DEVOLVIENDO,
                       UMBRAL_QUIETO, SALIDA_VIENDO, SUAVIZADO_CENTRO,
                       BORRAR_ID_TRAS, COMPONER_TRAYECTORIA_CADA,
                       MAX_TRAYECTORIA_PUNTOS, PROCESAR_CADA_N,
-                      VENTANA_SALIDA_OBJETO, VENTANA_DEDUPE_PICKUP, ZONAS)
+                      VENTANA_SALIDA_OBJETO, VENTANA_DEDUPE_PICKUP, ZONAS,
+                      VENTANA_DEVOLUCION, MIN_DEVOLUCION_INICIO)
 from .geometria import punto_en_zona
 
 
@@ -268,16 +269,16 @@ def detectar_interaccion_manos(datos, kps, fi, zona, tiene_objeto,
         datos["ultima_zona_contacto"] = zona["id"]
         datos["mano_fuera_racha"] = 0
 
-        # Una posible devolucion requiere una visita NUEVA al estante. Ademas,
-        # el producto debe verse al entrar (o pocos frames antes), no solo
-        # desaparecer despues de la toma original.
+        # Una posible devolucion requiere una visita NUEVA al estante: el flanco
+        # `entrando_al_agarro` (la mano reingresa al poligono tras haber salido)
+        # delimita la vuelta. Ademas, el producto debe verse al entrar (o pocos
+        # frames antes), no solo desaparecer despues de la toma original.
         ultimo_objeto = datos.get("ultimo_frame_posesion")
         objeto_al_entrar = (
             ultimo_objeto is not None
             and fi - ultimo_objeto <= VENTANA_OBJETO_AL_ENTRAR
         )
         if (not datos.get("pickup_armado", True)
-                and datos.get("nuevo_contacto_armado", False)
                 and entrando_al_agarro
                 and objeto_al_entrar):
             datos["contacto_desde_pickup"] = True
@@ -302,6 +303,18 @@ def detectar_interaccion_manos(datos, kps, fi, zona, tiene_objeto,
         and fi - ultimo_contacto <= VENTANA_SALIDA_OBJETO
     )
     zona_evento = datos.get("ultima_zona_contacto")
+
+    # Condicion de devolucion por gesto (producto invisible al detector):
+    # tomada ya la posesion, con la mano en el estante y dentro de la ventana
+    # de devolucion. Se usa en el elif de DEVOLUCION (no antes de la cadena,
+    # para no interrumpir el if/elif).
+    gesto_devolucion = (
+        datos.get("ultimo_pickup_frame") is not None
+        and mano_en_agarro
+        and MIN_DEVOLUCION_INICIO
+            <= fi - datos.get("ultimo_pickup_frame", 0)
+            <= VENTANA_DEVOLUCION
+    )
 
     # TOMA: dos observaciones de producto asociadas a un alcance reciente.
     # Ya no se exige que producto y muneca coincidan dentro del poligono en el
@@ -350,12 +363,24 @@ def detectar_interaccion_manos(datos, kps, fi, zona, tiene_objeto,
     # DEVOLUCION: despues de una toma, la persona vuelve a tocar el estante y
     # el producto permanece ausente durante varias observaciones. La espera
     # evita interpretar un parpadeo del detector como devolucion.
+    #
+    # Dos caminos:
+    #  1) Preciso: la muneca reingresa al area de agarro (nueva visita) y el
+    #     producto se vio al entrar (`contacto_desde_pickup`).
+    #  2) Por gesto (respuesta al detector de producto invisible): tras la toma,
+    #     con la mano aun en el estante y el producto ausente
+    #     (OBJETO_OBSERVACIONES_REARMAR) durante una ventana tras el pick-up
+    #     (MIN_DEVOLUCION_INICIO..VENTANA_DEVOLUCION). Sin requerir que la mano
+    #     haya salido del poligono, que es lo que ocurre en videos reales donde
+    #     el modelo fine-tuned no ve el producto en mano. La ventana evita
+    #     convertir en devolucion una segunda visita comercial al mismo estante.
     elif (not datos.get("pickup_armado", True)
-            and datos.get("contacto_desde_pickup", False)
-            and datos.get("devolucion_candidata", False)
+            and zona_evento
+            and datos.get("adquirido", False)
             and datos["sin_posesion_racha"] >= OBJETO_OBSERVACIONES_REARMAR
-            and not mano_en_agarro
-            and zona_evento):
+            and (gesto_devolucion
+                 or (datos.get("contacto_desde_pickup", False)
+                     and datos.get("devolucion_candidata", False)))):
         datos["devolviendo"] = True
         datos["retirado"] = False
         datos["adquirido"] = False
