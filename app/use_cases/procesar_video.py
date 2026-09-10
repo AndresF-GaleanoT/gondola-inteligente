@@ -3,6 +3,8 @@
 
 import json
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import cv2
@@ -13,10 +15,34 @@ from ..config import (COLOR_ZONA, MOSTRAR_HEATMAP, MOSTRAR_RESUMEN,
                       PROCESAR_CADA_N, VIDEO, VISION_FPS_OBJETIVO)
 from ..domain.analisis import HeatmapTrafico, AnalizadorZonas
 from ..domain.persona import procesar_personas
-from ..domain.geometria import poner_texto
 from ..infrastructure.anonimizacion import _cajas_cabeza_rastreadas, anonimizar
+from ..infrastructure.dibujo import poner_texto
 from ..infrastructure.vision import DetectorPoseYObjetos, CapturaVideo
 from .exportar_metricas import exportar_json_metricas
+
+
+def _ffmpeg():
+    """Devuelve la ruta de ffmpeg o None si no esta disponible.
+
+    Prioriza el binario estatico de imageio-ffmpeg (SIP, sin dependencias de
+    DLLs "rotas" del entorno) y si no busca en PATH/conda.
+    """
+    from shutil import which
+    try:
+        import imageio_ffmpeg
+        ruta = imageio_ffmpeg.get_ffmpeg_exe()
+        if Path(ruta).is_file():
+            return str(ruta)
+    except (ImportError, RuntimeError, OSError):
+        pass
+    for candidato in ("ffmpeg", str(Path(sys.executable).parent / "ffmpeg"),
+                      str(Path(sys.executable).parents[1] / "Library" / "bin"
+                          / "ffmpeg")):
+        ruta = which(candidato) or (candidato
+                                    if Path(candidato).is_file() else None)
+        if ruta:
+            return ruta
+    return None
 
 
 def _procesar_frame(detector, frame, fi, personas_estado, analizador, zonas,
@@ -190,6 +216,41 @@ def procesar_video(mostrar_ventana=True, ruta_video=None, emitir_marco=None,
             "stride": paso_guardado,
             "frames": frames_guardados,
         }
+
+        # Ademas del slideshow de fotogramas se codifica un MP4 (H.264) con
+        # "como el modelo ve": los JPEG anotados se renumeran de forma
+        # secuencial (la numeracion del pipeline tiene saltos de stride) y se
+        # pasan a ffmpeg. Si ffmpeg no esta disponible o falla, el dashboard
+        # replica la secuencia con los fotogramas directo (sin video).
+        if frames_guardados:
+            nombre_video = "escena_anotada.mp4"
+            ruta_video = Path(guardar_frames) / nombre_video
+            tmp = Path(guardar_frames) / "_video_tmp"
+            try:
+                tmp.mkdir(parents=True, exist_ok=True)
+                for i, nombre in enumerate(frames_guardados, start=1):
+                    shutil.copy2(Path(guardar_frames) / nombre,
+                                 tmp / ("f_%08d.jpg" % i))
+                ejecutable = _ffmpeg()
+                if ejecutable is not None:
+                    proc = subprocess.run(
+                        [ejecutable, "-y", "-loglevel", "error",
+                         "-framerate", str(fps / paso_guardado),
+                         "-i", str(tmp / "f_%08d.jpg"),
+                         "-c:v", "libx264", "-preset", "veryfast",
+                         "-crf", "23", "-pix_fmt", "yuv420p",
+                         "-movflags", "+faststart", str(ruta_video)],
+                        capture_output=True, timeout=300)
+                    if proc.returncode == 0 and ruta_video.exists() \
+                            and ruta_video.stat().st_size > 0:
+                        indice["video"] = nombre_video
+                    else:
+                        ruta_video.unlink(missing_ok=True)
+            except (OSError, subprocess.TimeoutExpired):
+                ruta_video.unlink(missing_ok=True)
+            finally:
+                shutil.rmtree(tmp, ignore_errors=True)
+
         ruta_indice = Path(guardar_frames).parent / "vision_frames_index.json"
         ruta_indice.write_text(json.dumps(indice, ensure_ascii=False), encoding="utf-8")
 

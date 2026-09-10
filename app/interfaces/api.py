@@ -1,8 +1,12 @@
 # INTERFACES / api - capa de entrega FastAPI.
 #   GET /api/estado   GET /api/datos   POST /api/analizar   POST /api/video
+#   GET/PUT /api/zonas   POST /api/zonas/restablecer
 #   GET /api/vision-frames  (indice de los fotogramas anotados del pipeline)
 #   GET /vision-frames/*   (JPEGs anotados, para el "visor" del dashboard)
 #   * / sirve el frontend estatico (dist/ o public/).
+# El flujo web es: subir video -> obtener un fotograma de VISTA PREVIA (sin
+# anotar) -> calibrar las zonas en la web -> POST /api/analizar. Asi los
+# poligonos que dibuja el usuario llegan al modelo YOLO en el analisis.
 
 import json
 import os
@@ -20,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 
 from ..application import paths
+from .. import config
 from ..config import MAX_VIDEO_MB, CONSERVAR_VIDEOS_SUBIDOS
 from ..application.paths import JSON_METRICAS, FRONTEND_DIST, \
     FRONTEND_PUBLIC, VIDEO_DIR, VISION_FRAMES, \
@@ -36,7 +41,7 @@ app.add_middleware(
         "GONDOLA_CORS_ORIGINS",
         "http://localhost:5173,http://127.0.0.1:5173",
     ).split(",") if o.strip()],
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT"],
     allow_headers=["Content-Type"],
 )
 
@@ -52,6 +57,11 @@ _estado_analisis = {
 }
 _VIDEOS_SUBIDOS = VIDEO_DIR / "subidos"
 
+# Video subido por la web, a la espera del analisis: se muestra un fotograma
+# de vista previa para calibrar las zonas y recien POST /api/analizar dispara
+# el pipeline (asi las zonas editadas llegan al modelo).
+_LISTO_ANALIZAR = None
+
 # Extensiones de video aceptadas.
 _EXTENSIONES_VIDEO = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
 
@@ -65,6 +75,35 @@ def _ruta_guardado_video(nombre_original: str) -> Path:
                             f"Usa {sorted(_EXTENSIONES_VIDEO)}.")
     base = f"{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
     return _VIDEOS_SUBIDOS / f"{base}_{Path(nombre_original).name}"
+
+
+def _extraer_preview(video: Path):
+    """Extrae un fotograma (SIN anotar) del video como vista previa para
+    calibrar las zonas en la web antes del analisis. Busca ~2s dentro del
+    video; si falla o es muy corto usa el primer fotograma. Devuelve None si
+    no se pudo extraer (la subida igual queda lista para analizar)."""
+    try:
+        import cv2
+    except Exception:
+        return None
+    cap = cv2.VideoCapture(str(video))
+    try:
+        if not cap.set(cv2.CAP_PROP_POS_MSEC, 2000):
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        ok, frame = cap.read()
+        if not ok or frame is None:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            ok, frame = cap.read()
+        if not ok or frame is None:
+            return None
+        _paths_vision.mkdir(parents=True, exist_ok=True)
+        nombre = f"preview_{uuid.uuid4().hex[:8]}.jpg"
+        ruta = _paths_vision / nombre
+        if not cv2.imwrite(str(ruta), frame, [cv2.IMWRITE_JPEG_QUALITY, 88]):
+            return None
+        return ruta
+    finally:
+        cap.release()
 
 
 def _actualizar_estado(**cambios):
@@ -93,6 +132,21 @@ def _detalle_error_log():
     except OSError:
         return "El proceso YOLO terminó con error."
     return lineas[-1][:500] if lineas else "El proceso YOLO terminó con error."
+
+
+def _info_listo_para_analizar():
+    """Informacion del video pendiente de analisis, solo si sigue disponible
+    en disco (el dashboard la restaura si se recarga la pagina)."""
+    if not _LISTO_ANALIZAR:
+        return None
+    video = _LISTO_ANALIZAR["video"]
+    preview = _LISTO_ANALIZAR["preview"]
+    if not video.is_file():
+        return None
+    return {
+        "video": video.name,
+        "preview": preview.name if preview and preview.is_file() else None,
+    }
 
 
 def _resolver_video_permitido(ruta_video: Optional[str]) -> Path:
@@ -241,6 +295,7 @@ def estado():
         "json_metricas": str(JSON_METRICAS),
         "generado_en": (datos.get("generado_en") if datos else None),
         "analisis_en_curso": actual["estado"] in {"iniciando", "procesando"},
+        "listo_para_analizar": _info_listo_para_analizar(),
     })
     return actual
 
@@ -257,8 +312,20 @@ def datos():
 
 @app.post("/api/analizar")
 def analizar(ruta_video: Optional[str] = None):
-    ruta = _resolver_video_permitido(ruta_video)
-    iniciado = _iniciar_analisis(ruta)
+    global _LISTO_ANALIZAR
+    if ruta_video:
+        ruta = _resolver_video_permitido(ruta_video)
+        eliminar_al_final = False
+    elif _LISTO_ANALIZAR:
+        ruta = _LISTO_ANALIZAR["video"]
+        if _LISTO_ANALIZAR["preview"]:
+            _LISTO_ANALIZAR["preview"].unlink(missing_ok=True)
+        _LISTO_ANALIZAR = None
+        eliminar_al_final = True
+    else:
+        ruta = _resolver_video_permitido(None)
+        eliminar_al_final = False
+    iniciado = _iniciar_analisis(ruta, eliminar_al_final=eliminar_al_final)
     if iniciado is None:
         return JSONResponse({"estado": "en_curso"}, status_code=409)
     return JSONResponse({
@@ -271,7 +338,9 @@ def analizar(ruta_video: Optional[str] = None):
 # --- Subida de video ----------------------------------------------------------
 @app.post("/api/video")
 async def subir_video(archivo: UploadFile = File(...)):
-    """Recibe un video, lo guarda y dispara el analisis YOLO en background."""
+    """Recibe un video, lo guarda y prepara un fotograma de vista previa para
+    calibrar las zonas en la web. El analisis YOLO NO arranca aqui: se dispara
+    con POST /api/analizar una vez calibradas las zonas."""
     with _analisis_lock:
         ocupado = _estado_analisis["estado"] in {"iniciando", "procesando"}
     if ocupado:
@@ -310,25 +379,73 @@ async def subir_video(archivo: UploadFile = File(...)):
     finally:
         await archivo.close()
 
-    iniciado = _iniciar_analisis(destino, eliminar_al_final=True)
-    if iniciado is None:
-        destino.unlink(missing_ok=True)
-        return JSONResponse({"estado": "en_curso"}, status_code=409)
+    global _LISTO_ANALIZAR
+    if _LISTO_ANALIZAR:
+        if _LISTO_ANALIZAR["preview"]:
+            _LISTO_ANALIZAR["preview"].unlink(missing_ok=True)
+        _LISTO_ANALIZAR["video"].unlink(missing_ok=True)
+    preview = _extraer_preview(destino)
+    _LISTO_ANALIZAR = {"video": destino, "preview": preview}
     return JSONResponse({
-        "estado": "iniciado",
-        "run_id": iniciado["run_id"],
+        "estado": "listo_para_analizar",
         "video": destino.name,
-        "mensaje": "Video subido. Análisis YOLO ejecutándose en segundo plano.",
-    }, status_code=202)
+        "preview": preview.name if preview else None,
+        "mensaje": "Video cargado. Calibra las zonas sobre la vista previa "
+                   "y luego ejecuta el análisis.",
+    }, status_code=200)
+
+
+# --- Editor de zonas ----------------------------------------------------------
+# GET /api/zonas devuelve las zonas vigentes (poligono + agarro) en el frame de
+# referencia (1280x720) y su origen. PUT /api/zonas las persiste en
+# config/zonas_runtime.json y las escribe de vuelta en app/config.py; POST
+# /api/zonas/restablecer vuelve a las de fabrica.
+
+def _zonas_para_api(zonas):
+    return [{"id": z["id"], "poligono": z["poligono"],
+             "agarro": z["agarro"]} for z in zonas]
+
+
+@app.get("/api/zonas")
+def leer_zonas():
+    return {
+        "zonas": _zonas_para_api(config.ZONAS),
+        "fuente": "runtime" if Path(config.RUNTIME_ZONAS).exists()
+        else "default",
+        "referencia": [config.ANCHO_REF_ZONAS, config.ALTO_REF_ZONAS],
+    }
+
+
+@app.put("/api/zonas")
+def guardar_zonas_api(cuerpo: dict):
+    try:
+        guardadas = config.guardar_zonas(cuerpo.get("zonas"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"zonas": _zonas_para_api(guardadas), "fuente": "runtime"}
+
+
+@app.post("/api/zonas/restablecer")
+def restablecer_zonas_api():
+    return {"zonas": _zonas_para_api(config.restablecer_zonas()),
+            "fuente": "default"}
 
 
 # --- Vision de las gondolas --------------------------------------------------
 # El pipeline, al analizar, guarda en VISION_FRAMES los fotogramas anotados
 # (zonas, etiquetas y heatmap) como JPEG + un indice JSON de la misma pasada.
-# El dashboard los monta como secuencia animada (los navegadores no decodifican
-# el codec mp4v del OpenCV, asi que no servimos un <video>).
+# Si ffmpeg esta disponible tambien codifica "escena_anotada.mp4" (H.264,
+# decodificable por el navegador) y el indice lo referencia en "video"; si no,
+# el dashboard replica la secuencia como animacion de fotogramas.
 _paths_vision = Path(VISION_FRAMES)
 _paths_vision.mkdir(parents=True, exist_ok=True)
+# Las previews son efimeras: al arrancar/reiniciar se limpian las huerfanas
+# que pudieran haber quedado de procesos anteriores.
+for _p in _paths_vision.glob("preview_*.jpg"):
+    try:
+        _p.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 @app.get("/api/vision-frames")

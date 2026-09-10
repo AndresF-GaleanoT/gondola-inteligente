@@ -76,11 +76,50 @@ export async function subirVideo(archivo) {
   const { resp, cuerpo } = await pedir('/api/video', {
     method: 'POST',
     body: formData,
-    timeoutMs: 120000, // el analisis corre en background; solo se espera el 202
+    timeoutMs: 120000,
   });
   if (!resp.ok) {
     const detalle = cuerpo?.detail || cuerpo?.estado || `Error ${resp.status}`;
     throw new Error(detalle);
   }
+  return cuerpo;
+}
+
+export async function analizarVideo() {
+  const { resp, cuerpo } = await pedir('/api/analizar', {
+    method: 'POST',
+    timeoutMs: 20000,
+  });
+  if (!resp.ok) {
+    const detalle = cuerpo?.detail || cuerpo?.mensaje || `Error ${resp.status}`;
+    throw new Error(detalle);
+  }
+  return cuerpo;
+}
+
+export async function cargarZonas() {
+  const { resp, cuerpo } = await pedir('/api/zonas');
+  if (!resp.ok) throw new Error('No se pudieron cargar las zonas.');
+  return cuerpo;
+}
+
+export async function guardarZonas(zonas) {
+  const { resp, cuerpo } = await pedir('/api/zonas', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ zonas }),
+  });
+  if (!resp.ok) {
+    throw new Error(cuerpo?.detail || `Error ${resp.status} al guardar zonas.`);
+  }
+  return cuerpo;
+}
+
+export async function restablecerZonas() {
+  const { resp, cuerpo } = await pedir('/api/zonas/restablecer', {
+    method: 'POST',
+    timeoutMs: 20000,
+  });
+  if (!resp.ok) throw new Error('No se pudieron restablecer las zonas.');
   return cuerpo;
 }

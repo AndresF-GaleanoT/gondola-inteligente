@@ -1,6 +1,9 @@
 # CONFIG - constantes ajustables de la Gondola Inteligente (en un solo lugar).
 
+from pathlib import Path
+
 from .application import paths
+from .application import zonas as _zonas
 
 
 # --- Dimensiones reales del video (se fijan con el primer frame) ------------
@@ -57,54 +60,63 @@ VISION_FPS_OBJETIVO = 5
 # `agarro` marca la zona contenida donde la MANO toca el producto/percha (para
 # que el gesto entre y salga del agarro y se complete el pick-up). La zona de un
 # pick-up se decide priorizando la muneca (agarro) sobre el centroide del cuerpo.
-ZONAS = [
+# El editor web (GET/PUT /api/zonas) reescribe este literal y ademas guarda una
+# copia en config/zonas_runtime.json que el pipeline prioriza al importar.
+_ZONAS_DEFAULT = [
     {
         "id": "Estante_Izquierdo",
-        # Mismo factor neto que el central (x1.565 por eje = +45% area + +30%
-        # por lado), anclado en el centroide y recortado al frame (y 0..719).
-        # ATENCION: el borde derecho (x=495) SOBREPASA el borde izquierdo del
-        # Estante_Central (x=477) -> se solapan 18px; el cruce se resuelve por
-        # prioridad de orden de ZONAS (Izquierdo gana en el cruce).
-        "poligono": [[390, 0], [515, 0], [304, 719], [0, 719]],
-        "agarro": [
-            [216, 0],
-            [466, 0],
-            [278, 706],
-            [59, 706]
-        ],
+        "poligono": [[316, 0], [515, 0], [304, 719], [0, 719]],
+        "agarro": [[334, 17], [484, 16], [278, 706], [59, 706]],
     },
     {
         "id": "Estante_Central",
-        # Poligono escalado un +30% POR LADO (x1.30, anclado en el centroide)
-        # sobre la version anterior. El alto se recorto al frame (y 0..719).
-        # Huecos horizontales: Izquierdo x=477 (55px de margen) y Derecho x=826
-        # (SOLO 4px — practicamente pegado al Estante_Derecho que empieza en
-        # x=830).
-        "poligono": [[556, 0], [730, 0], [826, 719], [477, 719]],
-        "agarro": [
-            [576, 0],
-            [702, 0],
-            [764, 703],
-            [529, 703]
-        ],
+        "poligono": [[556, 0], [766, 0], [816, 686], [506, 710]],
+        "agarro": [[576, 0], [749, 0], [745, 665], [548, 660]],
     },
     {
         "id": "Estante_Derecho",
-        # Mismo factor neto que el central (x1.565 por eje = +45% area + +30%
-        # por lado), anclado en el centroide y recortado al frame (y 0..719).
-        # El borde derecho (x=1279) coincide con el borde del video 1280px.
-        # ATENCION: el borde izquierdo (x=740) SOBREPASA el borde derecho del
-        # Estante_Central (x=826) -> se solapan 86px; el cruce se resuelve por
-        # prioridad de orden de ZONAS (Central gana en el cruce izquierdo).
-        "poligono": [[770,0], [900, 0], [1279, 719], [1006, 719]],
-        "agarro": [
-            [772, 0],
-            [866, 0],
-            [1258, 703],
-            [1054, 703]
-        ],
+        "poligono": [[770, 0], [900, 0], [1235, 664], [1051, 431]],
+        "agarro": [[772, 0], [866, 0], [1173, 625], [1014, 651]],
     },
 ]
+
+# Archivo de runtime: sobrescribe los valores de _ZONAS_DEFAULT cuando existe
+# (lo escribe el editor web al guardar). El pipeline lo prioriza al importar.
+RUNTIME_ZONAS = str(paths.CONFIG_DIR / "zonas_runtime.json")
+
+
+def validar_zonas(zonas):
+    """Valida las zonas del editor contra el frame de referencia."""
+    return _zonas.validar_zonas(zonas, ANCHO_REF_ZONAS, ALTO_REF_ZONAS)
+
+
+def guardar_zonas(zonas):
+    """Persiste las zonas del editor: runtime JSON (lo consume el pipeline)
+    Y write-back al literal _ZONAS_DEFAULT de la configuracion. Devuelve la
+    lista validada y actualiza la configuracion en memoria."""
+    global ZONAS
+    ZONAS = _zonas.guardar_zonas(zonas, ANCHO_REF_ZONAS, ALTO_REF_ZONAS,
+                                 RUNTIME_ZONAS, Path(__file__))
+    return ZONAS
+
+
+def restablecer_zonas():
+    """Vuelve a las zonas de fabrica: borra el runtime, restaura el literal
+    por defecto y refresca la configuracion en memoria."""
+    global ZONAS
+    ZONAS = _zonas.restablecer_zonas(_ZONAS_DEFAULT, RUNTIME_ZONAS,
+                                     Path(__file__))
+    return ZONAS
+
+
+def _cargar_zonas():
+    """Zonas vigentes: el runtime del editor si existe (y es valido); si no,
+    los valores por defecto del literal _ZONAS_DEFAULT."""
+    return _zonas.cargar_zonas(RUNTIME_ZONAS, _ZONAS_DEFAULT,
+                               ANCHO_REF_ZONAS, ALTO_REF_ZONAS)
+
+
+ZONAS = _cargar_zonas()
 
 
 def escalar_zonas(ancho, alto):
@@ -116,16 +128,8 @@ def escalar_zonas(ancho, alto):
     punto a punto para conservar su forma. Antes se reducia a su bounding-box
     (rectangulo), lo que agrandaba la zona de gesto en videos de otra resolucion.
     """
-    if ancho == ANCHO_REF_ZONAS and alto == ALTO_REF_ZONAS:
-        return ZONAS
-    fx, fy = ancho / ANCHO_REF_ZONAS, alto / ALTO_REF_ZONAS
-    zonas_escaladas = []
-    for z in ZONAS:
-        zon = dict(z)
-        zon["poligono"] = [[round(x * fx), round(y * fy)] for x, y in z["poligono"]]
-        zon["agarro"] = [[round(x * fx), round(y * fy)] for x, y in z["agarro"]]
-        zonas_escaladas.append(zon)
-    return zonas_escaladas
+    return _zonas.escalar_zonas(ZONAS, ancho, alto,
+                                ANCHO_REF_ZONAS, ALTO_REF_ZONAS)
 
 # --- Clasificacion de comportamiento ----------------------------------------
 QUIETO_PARA_VER = 30
