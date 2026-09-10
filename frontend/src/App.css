@@ -196,6 +196,9 @@ h1 {
 .stage-main { padding: 18px; border-right: 1px solid var(--ink); }
 .section-head { display: flex; justify-content: space-between; gap: 20px; align-items: end; margin-bottom: 14px; }
 .section-head h2 { margin: 0; font-family: Georgia, serif; font-size: 1.55rem; font-weight: 400; }
+.section-head-actions { display: flex; align-items: center; gap: 12px; }
+.zone-edit-btn { padding: 7px 12px; background: var(--ink); color: #fff; border: 1px solid var(--ink); font-size: .72rem; font-weight: 700; letter-spacing: .04em; cursor: pointer; }
+.zone-edit-btn:hover { background: var(--cobalt); border-color: var(--cobalt); }
 .live { font-family: "Courier New", monospace; font-size: .72rem; text-transform: uppercase; }
 .live::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--green); }
 
@@ -242,6 +245,41 @@ h1 {
 .vision-panel .vision-controls button:hover { background: rgba(255,255,255,.1); }
 .vision-panel .vision-controls span { color: #8995a8; text-align: center; font-size: .66rem; }
 .frame-counter { position: absolute; right: 12px; bottom: 10px; padding: 6px 8px; background: var(--ink); color: #fff; font: .68rem "Courier New", monospace; }
+
+.listo-banner { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 14px 0 -6px; padding: 10px 12px; background: rgba(217, 237, 85, .08); border: 1px solid rgba(217, 237, 85, .35); border-radius: 6px; font-size: .78rem; color: var(--muted); }
+.listo-banner b { color: #fff; font-weight: 700; }
+.listo-banner button.guardar { margin-left: auto; padding: 8px 14px; background: var(--green); border: 1px solid var(--green); color: #fff; cursor: pointer; font: 700 .74rem "Space Grotesk", sans-serif; border-radius: 4px; }
+.listo-banner button.guardar:hover { filter: brightness(1.1); }
+
+.zone-overlay-wrap { padding: 0; background: #05070b; }
+.zone-overlay { position: relative; width: 100%; background: #05070b; }
+.zone-overlay .zone-dims-io { position: absolute; width: 1px; height: 1px; visibility: hidden; pointer-events: none; }
+.zone-overlay .zone-media { display: block; width: 100%; height: 100%; object-fit: fill; }
+.zone-overlay svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.zone-overlay polygon { fill: none; }
+.zone-overlay text { fill: #fff; font: 700 15px "Courier New", monospace; paint-order: stroke; stroke: #000; stroke-width: 3px; pointer-events: none; }
+
+.editor-block { padding: 14px; background: #05070b; }
+.zone-editor-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 10px; color: #cfd6e3; font-size: .72rem; }
+.zone-editor-tools > span:first-child { color: #8995a8; }
+.zone-origin { padding: 3px 8px; border: 1px solid rgba(255,255,255,.18); font: 700 .64rem "Courier New", monospace; text-transform: uppercase; letter-spacing: .06em; border-radius: 3px; }
+.zone-origin.runtime { color: var(--lime); border-color: var(--lime); }
+.zone-editor-actions { display: flex; gap: 8px; }
+.zone-editor-actions button { padding: 7px 12px; border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.05); color: #e8edf5; cursor: pointer; font-size: .7rem; font-weight: 700; border-radius: 4px; }
+.zone-editor-actions button:hover { background: rgba(255,255,255,.12); }
+.zone-editor-actions button.guardar { background: var(--green); border-color: var(--green); color: #fff; }
+.zone-editor-actions button:disabled { opacity: .45; cursor: not-allowed; }
+.zone-canvas { position: relative; width: 100%; background: #05070b; border: 1px solid rgba(255,255,255,.09); }
+.zone-canvas img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+.zone-canvas svg { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+.zone-canvas polygon { fill-opacity: .15; stroke-width: 2; pointer-events: none; }
+.zone-canvas polygon.zone-agarro { fill-opacity: .06; stroke-dasharray: 6 4; }
+.zone-canvas circle { fill: #fff; stroke: #000; stroke-width: 1.5px; pointer-events: none; }
+.zone-canvas text { fill: #fff; font: 700 15px "Courier New", monospace; paint-order: stroke; stroke: #000; stroke-width: 3px; pointer-events: none; }
+.zone-hint { position: absolute; left: 10px; bottom: 10px; max-width: 72%; padding: 5px 9px; background: rgba(0,0,0,.66); color: #cfd6e3; font-size: .68rem; border-radius: 4px; pointer-events: none; }
+.zone-error { position: absolute; top: 10px; left: 10px; right: 10px; padding: 8px 10px; background: rgba(239,61,41,.94); color: #fff; font-size: .74rem; }
+.zone-canvas polygon.invalido { stroke: #ff4d5e !important; stroke-width: 3px; filter: drop-shadow(0 0 4px rgba(255,77,94,.7)); }
+@media (max-width: 620px) { .zone-editor-tools { flex-direction: column; align-items: stretch; } .zone-editor-actions { justify-content: space-between; } }
 
 .stage-side { display: flex; flex-direction: column; }
 .event-head { padding: 18px; border-bottom: 1px solid var(--ink); }

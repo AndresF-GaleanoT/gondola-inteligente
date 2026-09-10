@@ -12,7 +12,9 @@ import {
   ZONE_NAME_MAP,
 } from '../domain/zones';
 import { analizarZona, sugerirPlanograma } from '../domain/agente';
-import { cargarDatos, subirVideo, obtenerEstado } from '../application/api';
+import { cargarDatos, subirVideo, analizarVideo, obtenerEstado, cargarZonas } from '../application/api';
+import ZoneEditor from './ZoneEditor';
+import ZoneOverlay from './ZoneOverlay';
 
 const ZONE_TEMP_MAP = {
   caliente: 'hot',
@@ -41,6 +43,10 @@ export default function App() {
   const [vision, setVision] = useState({ frames: [], fps: 24, stride: 2 });
   const [visionIdx, setVisionIdx] = useState(0);
   const [visionPlay, setVisionPlay] = useState(false);
+  const [editandoZonas, setEditandoZonas] = useState(false);
+  const [zonasVista, setZonasVista] = useState(null);
+  const [zonasTick, setZonasTick] = useState(0);
+  const [preparado, setPreparado] = useState(null);
 
   useEffect(() => {
     let activo = true;
@@ -65,6 +71,25 @@ export default function App() {
     }, dt);
     return () => clearInterval(timer);
   }, [visionPlay, vision]);
+
+  useEffect(() => {
+    let activo = true;
+    obtenerEstado()
+      .then((estado) => {
+        const L = estado?.listo_para_analizar;
+        if (!activo) return;
+        if (L?.preview) {
+          setPreparado({ video: L.video, preview: L.preview });
+          setEditandoZonas(true);
+          setVision({ frames: [], fps: 24, stride: 2 });
+          setVisionPlay(false);
+          setUploadMsg('Video listo para calibrar. Ajustá los polígonos '
+            + 'sobre la vista previa y luego ejecutá el análisis.');
+        }
+      })
+      .catch(() => {});
+    return () => { activo = false; };
+  }, []);
 
   const showToast = useCallback((msg) => {
     setToast(msg);
@@ -164,6 +189,23 @@ export default function App() {
     return () => { activo = false; };
   }, [loadData, aplicarDatos]);
 
+  const refreshZonas = useCallback(async () => {
+    try {
+      const info = await cargarZonas();
+      setZonasVista({
+        zonas: info.zonas,
+        referencia: info.referencia,
+        fuente: info.fuente,
+      });
+    } catch {
+      setZonasVista(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshZonas();
+  }, [refreshZonas, zonasTick]);
+
   const handleFileChange = (e) => {
     const file = e.target.files?.[0] || null;
     if (file && file.size > 500 * 1024 * 1024) {
@@ -177,6 +219,33 @@ export default function App() {
     setUploadMsg('');
   };
 
+  const esperarAnalisis = useCallback(async () => {
+    for (let i = 0; i < 120; i++) {
+      await new Promise((r) => setTimeout(r, 2500));
+      const estado = await obtenerEstado();
+      if (estado?.estado === 'error') {
+        throw new Error(estado.error || 'Error en el procesamiento YOLO.');
+      }
+      if (Number.isFinite(Number(estado?.progreso_pct))) {
+        const progreso = Math.round(Number(estado.progreso_pct));
+        setAnalysisProgress(progreso);
+        setUploadMsg(`Analizando video… ${progreso}%`);
+      }
+      if (estado?.estado === 'completado') {
+        const data = await loadData();
+        if (data) {
+          aplicarDatos(data);
+          setAnalysisProgress(100);
+          setUploadMsg('Análisis completado.');
+          showToast('Análisis actualizado. Las métricas están listas.');
+          return;
+        }
+        throw new Error('El análisis terminó, pero no produjo métricas válidas.');
+      }
+    }
+    throw new Error('Tiempo máximo de espera superado (5 min).');
+  }, [loadData, aplicarDatos, showToast]);
+
   const handleUpload = async () => {
     if (!selectedFile) {
       setUploadMsg('Selecciona un archivo de video.');
@@ -184,7 +253,7 @@ export default function App() {
     }
     setUploading(true);
     setAnalysisProgress(0);
-    setUploadMsg('Subiendo y disparando el análisis…');
+    setUploadMsg('Subiendo video…');
     try {
       const res = await subirVideo(selectedFile);
       setVision({ frames: [], fps: 24, stride: 2 });
@@ -192,34 +261,36 @@ export default function App() {
       setVisitors(0);
       setPickups(0);
       setZoneData([]);
-      setUploadMsg(`Video subido. ${res.mensaje || 'Análisis en segundo plano.'}`);
-      for (let i = 0; i < 120; i++) {
-        await new Promise((r) => setTimeout(r, 2500));
-        const estado = await obtenerEstado();
-        if (estado?.estado === 'error') {
-          throw new Error(estado.error || 'Error en el procesamiento YOLO.');
-        }
-        if (Number.isFinite(Number(estado?.progreso_pct))) {
-          const progreso = Math.round(Number(estado.progreso_pct));
-          setAnalysisProgress(progreso);
-          setUploadMsg(`Analizando video… ${progreso}%`);
-        }
-        if (estado?.estado === 'completado') {
-          const data = await loadData();
-          if (data) {
-            aplicarDatos(data);
-            setAnalysisProgress(100);
-            setUploadMsg('Análisis completado.');
-            showToast('Análisis actualizado. Las métricas están listas.');
-          } else {
-            throw new Error('El análisis terminó, pero no produjo métricas válidas.');
-          }
-          break;
-        }
-        if (i === 119) {
-          throw new Error('Tiempo máximo de espera superado (5 min).');
-        }
+      if (res.estado === 'listo_para_analizar' && res.preview) {
+        setPreparado({ video: res.video, preview: res.preview });
+        setEditandoZonas(true);
+        setUploadMsg('Video cargado. Ajustá los polígonos sobre la vista previa '
+          + 'y luego pulsá “Ejecutar análisis”.');
+        setSelectedFile(null);
+      } else {
+        setUploadMsg(`Video recibido. ${res.mensaje || ''}`);
       }
+    } catch (err) {
+      setUploadMsg(`Error: ${err.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleAnalizar = async () => {
+    setUploading(true);
+    setAnalysisProgress(0);
+    setEditandoZonas(false);
+    setPreparado(null);
+    setVision({ frames: [], fps: 24, stride: 2 });
+    setVisionPlay(false);
+    setUploadMsg('Iniciando análisis…');
+    try {
+      const res = await analizarVideo();
+      if (res?.estado === 'en_curso') {
+        throw new Error('Ya hay un análisis en curso.');
+      }
+      await esperarAnalisis();
     } catch (err) {
       setUploadMsg(`Error: ${err.message}`);
     } finally {
@@ -235,13 +306,81 @@ export default function App() {
 
   const fileName = selectedFile?.name || 'Seleccionar archivo de video';
 
+  let contenidoEscena;
+  if (editandoZonas) {
+    contenidoEscena = (
+      <div className="observation editor-block" aria-label="Editor de zonas">
+        <ZoneEditor
+          frameUrl={
+            preparado
+              ? `/vision-frames/${preparado.preview}?v=${videoTick}`
+              : `/vision-frames/${vision.frames[0] || ''}?v=${videoTick}`
+          }
+          onClose={() => setEditandoZonas(false)}
+          onGuardado={showToast}
+          onCambio={() => setZonasTick((t) => t + 1)}
+        />
+      </div>
+    );
+  } else if (vision.frames.length > 0) {
+    contenidoEscena = (
+      <div className="observation zone-overlay-wrap" aria-label="Visión de las góndolas">
+        {vision.video ? (
+          <>
+            <ZoneOverlay
+              zonas={zonasVista?.zonas}
+              referencia={zonasVista?.referencia}
+              frameUrl={`/vision-frames/${vision.frames[0] || ''}?v=${videoTick}`}
+              src={`/vision-frames/${vision.video}?v=${videoTick}`}
+              tipo="video"
+            />
+            <span className="frame-counter" style={{ bottom: 10 }}>
+              VISTA DEL MODELO
+            </span>
+          </>
+        ) : (
+          <>
+            <ZoneOverlay
+              zonas={zonasVista?.zonas}
+              referencia={zonasVista?.referencia}
+              frameUrl={`/vision-frames/${vision.frames[0] || ''}?v=${videoTick}`}
+              src={`/vision-frames/${vision.frames[visionIdx] || ''}?v=${videoTick}`}
+              tipo="img"
+            />
+            <span className="frame-counter" style={{ bottom: 10 }}>
+              VISTA DEL MODELO
+            </span>
+          </>
+        )}
+      </div>
+    );
+  } else if (preparado) {
+    contenidoEscena = (
+      <div className="observation" style={{ display: 'grid', placeItems: 'center' }}>
+        <p style={{ color: 'var(--muted)', fontSize: '.82rem', textAlign: 'center' }}>
+          Video cargado ({preparado.video}) — abrí el editor para
+          calibrar los polígonos y luego ejecutá el análisis.
+        </p>
+      </div>
+    );
+  } else {
+    contenidoEscena = (
+      <div className="observation" style={{ display: 'grid', placeItems: 'center' }}>
+        <p style={{ color: 'var(--muted)', fontSize: '.82rem', textAlign: 'center' }}>
+          La visión de las góndolas se generará al ejecutar el análisis.<br />
+          Sube un video o usa los datos existentes.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="shell">
       <aside className="rail">
         <div className="brand">
-          <div className="brand-mark">A</div>
+          <div className="brand-mark">Z</div>
           <div className="brand-copy">
-            <strong>AlphaNode</strong>
+            <strong>ZoneMetrics</strong>
             <span>RETAIL LAB</span>
           </div>
         </div>
@@ -295,8 +434,12 @@ export default function App() {
               <span>{fileName}</span>
             </label>
             <input id="videoInputB" type="file" accept="video/*" hidden onChange={handleFileChange} />
-            <button className="run" onClick={handleUpload} disabled={uploading || !selectedFile}>
-              {uploading ? 'Procesando…' : 'Analizar video'}
+            <button
+              className="run"
+              onClick={selectedFile ? handleUpload : handleAnalizar}
+              disabled={uploading || (!selectedFile && !preparado)}
+            >
+              {uploading ? 'Procesando…' : (selectedFile ? 'Cargar y calibrar zonas' : (preparado ? 'Analizar video subido' : 'Analizar video'))}
             </button>
           </div>
 
@@ -340,36 +483,34 @@ export default function App() {
             <div className="stage-main">
               <div className="section-head">
                 <h2>Escena analizada</h2>
-                <span className="live">Pipeline activo</span>
-              </div>
-              {vision.frames.length > 0 ? (
-                <div className="observation vision-panel" aria-label="Visión de las góndolas">
-                  <img
-                    className="vision-video"
-                    src={`/vision-frames/${vision.frames[visionIdx] || ''}?v=${videoTick}`}
-                    alt="Visión de las góndolas"
-                  />
-                  <div className="vision-controls">
-                    <button type="button" onClick={() => setVisionPlay((p) => !p)}>
-                      {visionPlay ? '⏸ Pausa' : '▶ Reproducir'}
+                <div className="section-head-actions">
+                  <span className="live">Pipeline activo</span>
+                  {(vision.frames.length > 0 || preparado) && (
+                    <button
+                      type="button"
+                      className="zone-edit-btn"
+                      onClick={() => {
+                        setEditandoZonas((v) => !v);
+                        setZonasTick((t) => t + 1);
+                      }}
+                    >
+                      {editandoZonas ? '✕ Cerrar editor' : '✎ Editar zonas'}
                     </button>
-                    <span>Fotograma {visionIdx + 1} / {vision.frames.length}</span>
-                    <button type="button" onClick={() => setVisionIdx(0)}>
-                      Reiniciar
-                    </button>
-                  </div>
-                  <span className="frame-counter" style={{ bottom: 58 }}>
-                    FOTOGRAMA {visionIdx + 1} / {vision.frames.length}
-                  </span>
+                  )}
                 </div>
-              ) : (
-                <div className="observation" style={{ display: 'grid', placeItems: 'center' }}>
-                  <p style={{ color: 'var(--muted)', fontSize: '.82rem', textAlign: 'center' }}>
-                    La visión de las góndolas se generará al ejecutar el análisis.<br />
-                    Sube un video o usa los datos existentes.
-                  </p>
+              </div>
+              {preparado && !uploading && (
+                <div className="listo-banner">
+                  <span>
+                    Video listo: <b>{preparado.video}</b>. Calibrá los polígonos
+                    sobre la vista previa y ejecutá el análisis con estas zonas.
+                  </span>
+                  <button type="button" className="guardar" onClick={handleAnalizar}>
+                    ▶ Ejecutar análisis
+                  </button>
                 </div>
               )}
+{contenidoEscena}
             </div>
             <aside className="stage-side">
               <div className="event-head">

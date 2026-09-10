@@ -10,10 +10,6 @@ demo_annotado.mp4
 test_video.mp4
 *.mp4
 
-# Modelos YOLO (.pt) - se descargan automaticamente con ultralytics
-models/*.pt
-*.pt
-
 #---------------- Salidas de ejecucion ----------
 outputs/
 uploads/
@@ -47,3 +43,9 @@ AGENTS.md
 .idea/
 .DS_Store
 Thumbs.db
+
+#---------------- Artefactos de runtime / re-generables ----------
+video/subidos/
+models/
+config/zonas_runtime.json
+.pytest_cache/
