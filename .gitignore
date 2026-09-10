@@ -43,13 +43,11 @@ AGENTS.md
 .idea/
 .DS_Store
 Thumbs.db
-<<<<<<< HEAD
 .venv/
-=======
 
 #---------------- Artefactos de runtime / re-generables ----------
 video/subidos/
 models/
 config/zonas_runtime.json
 .pytest_cache/
->>>>>>> origin/master
+

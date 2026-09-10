@@ -12,9 +12,8 @@ import {
   ZONE_NAME_MAP,
 } from '../domain/zones';
 import { analizarZona, sugerirPlanograma } from '../domain/agente';
-import { cargarDatos, subirVideo, analizarVideo, obtenerEstado, cargarZonas } from '../application/api';
-import ZoneEditor from './ZoneEditor';
-import ZoneOverlay from './ZoneOverlay';
+import { cargarDatos, subirVideo, obtenerEstado } from '../application/api';
+import AccessibilityPanel from './AccessibilityPanel.jsx';
 
 const AnalyticsCharts = lazy(() => import('./AnalyticsCharts.jsx'));
 
@@ -42,14 +41,12 @@ export default function App() {
   const [videoTick, setVideoTick] = useState(() => Date.now());
   const [toast, setToast] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('gondola-sidebar-collapsed') === 'true');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [vision, setVision] = useState({ frames: [], fps: 24, stride: 2 });
   const [visionIdx, setVisionIdx] = useState(0);
   const [visionPlay, setVisionPlay] = useState(false);
-  const [editandoZonas, setEditandoZonas] = useState(false);
-  const [zonasVista, setZonasVista] = useState(null);
-  const [zonasTick, setZonasTick] = useState(0);
-  const [preparado, setPreparado] = useState(null);
 
   useEffect(() => {
     let activo = true;
@@ -67,6 +64,18 @@ export default function App() {
   }, [videoTick]);
 
   useEffect(() => {
+    localStorage.setItem('gondola-sidebar-collapsed', String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    const closeMenu = (event) => {
+      if (event.key === 'Escape') setMobileMenuOpen(false);
+    };
+    document.addEventListener('keydown', closeMenu);
+    return () => document.removeEventListener('keydown', closeMenu);
+  }, []);
+
+  useEffect(() => {
     if (!visionPlay || !vision.frames.length) return;
     const dt = (vision.stride || 2) * 1000 / (vision.fps || 24);
     const timer = setInterval(() => {
@@ -75,29 +84,19 @@ export default function App() {
     return () => clearInterval(timer);
   }, [visionPlay, vision]);
 
-  useEffect(() => {
-    let activo = true;
-    obtenerEstado()
-      .then((estado) => {
-        const L = estado?.listo_para_analizar;
-        if (!activo) return;
-        if (L?.preview) {
-          setPreparado({ video: L.video, preview: L.preview });
-          setEditandoZonas(true);
-          setVision({ frames: [], fps: 24, stride: 2 });
-          setVisionPlay(false);
-          setUploadMsg('Video listo para calibrar. Ajustá los polígonos '
-            + 'sobre la vista previa y luego ejecutá el análisis.');
-        }
-      })
-      .catch(() => {});
-    return () => { activo = false; };
-  }, []);
-
   const showToast = useCallback((msg) => {
     setToast(msg);
     setToastVisible(true);
     setTimeout(() => setToastVisible(false), 2600);
+  }, []);
+
+  const handlePrintReport = useCallback(() => {
+    // ECharts renderiza en canvas. Antes de abrir el diálogo de impresión se
+    // solicita a cada gráfica una versión PNG de alta resolución para que el
+    // navegador la incorpore de forma fiable al PDF.
+    window.dispatchEvent(new Event('resize'));
+    window.dispatchEvent(new Event('gondola:prepare-print'));
+    window.setTimeout(() => window.print(), 500);
   }, []);
 
   const interactionRate = useMemo(
@@ -217,23 +216,6 @@ export default function App() {
     return () => { activo = false; };
   }, [loadData, aplicarDatos]);
 
-  const refreshZonas = useCallback(async () => {
-    try {
-      const info = await cargarZonas();
-      setZonasVista({
-        zonas: info.zonas,
-        referencia: info.referencia,
-        fuente: info.fuente,
-      });
-    } catch {
-      setZonasVista(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshZonas();
-  }, [refreshZonas, zonasTick]);
-
   const handleFileChange = (e) => {
     const file = e.target.files?.[0] || null;
     if (file && file.size > 500 * 1024 * 1024) {
@@ -247,33 +229,6 @@ export default function App() {
     setUploadMsg('');
   };
 
-  const esperarAnalisis = useCallback(async () => {
-    for (let i = 0; i < 120; i++) {
-      await new Promise((r) => setTimeout(r, 2500));
-      const estado = await obtenerEstado();
-      if (estado?.estado === 'error') {
-        throw new Error(estado.error || 'Error en el procesamiento YOLO.');
-      }
-      if (Number.isFinite(Number(estado?.progreso_pct))) {
-        const progreso = Math.round(Number(estado.progreso_pct));
-        setAnalysisProgress(progreso);
-        setUploadMsg(`Analizando video… ${progreso}%`);
-      }
-      if (estado?.estado === 'completado') {
-        const data = await loadData();
-        if (data) {
-          aplicarDatos(data);
-          setAnalysisProgress(100);
-          setUploadMsg('Análisis completado.');
-          showToast('Análisis actualizado. Las métricas están listas.');
-          return;
-        }
-        throw new Error('El análisis terminó, pero no produjo métricas válidas.');
-      }
-    }
-    throw new Error('Tiempo máximo de espera superado (5 min).');
-  }, [loadData, aplicarDatos, showToast]);
-
   const handleUpload = async () => {
     if (!selectedFile) {
       setUploadMsg('Selecciona un archivo de video.');
@@ -281,7 +236,7 @@ export default function App() {
     }
     setUploading(true);
     setAnalysisProgress(0);
-    setUploadMsg('Subiendo video…');
+    setUploadMsg('Subiendo y disparando el análisis…');
     try {
       const res = await subirVideo(selectedFile);
       setVision({ frames: [], fps: 24, stride: 2 });
@@ -289,7 +244,6 @@ export default function App() {
       setVisitors(0);
       setPickups(0);
       setZoneData([]);
-<<<<<<< HEAD
       setRecomendaciones(null);
       setEvidences([]);
       setAnalytics({ funnel: [], behavior: [], flows: { nodes: [], links: [] } });
@@ -321,38 +275,7 @@ export default function App() {
         if (i === 119) {
           throw new Error('Tiempo máximo de espera superado (5 min).');
         }
-=======
-      if (res.estado === 'listo_para_analizar' && res.preview) {
-        setPreparado({ video: res.video, preview: res.preview });
-        setEditandoZonas(true);
-        setUploadMsg('Video cargado. Ajustá los polígonos sobre la vista previa '
-          + 'y luego pulsá “Ejecutar análisis”.');
-        setSelectedFile(null);
-      } else {
-        setUploadMsg(`Video recibido. ${res.mensaje || ''}`);
->>>>>>> origin/master
       }
-    } catch (err) {
-      setUploadMsg(`Error: ${err.message}`);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleAnalizar = async () => {
-    setUploading(true);
-    setAnalysisProgress(0);
-    setEditandoZonas(false);
-    setPreparado(null);
-    setVision({ frames: [], fps: 24, stride: 2 });
-    setVisionPlay(false);
-    setUploadMsg('Iniciando análisis…');
-    try {
-      const res = await analizarVideo();
-      if (res?.estado === 'en_curso') {
-        throw new Error('Ya hay un análisis en curso.');
-      }
-      await esperarAnalisis();
     } catch (err) {
       setUploadMsg(`Error: ${err.message}`);
     } finally {
@@ -363,88 +286,31 @@ export default function App() {
   const changeView = (view) => {
     setActiveView(view);
     setActiveZone(null);
+    setMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const fileName = selectedFile?.name || 'Seleccionar archivo de video';
 
-  let contenidoEscena;
-  if (editandoZonas) {
-    contenidoEscena = (
-      <div className="observation editor-block" aria-label="Editor de zonas">
-        <ZoneEditor
-          frameUrl={
-            preparado
-              ? `/vision-frames/${preparado.preview}?v=${videoTick}`
-              : `/vision-frames/${vision.frames[0] || ''}?v=${videoTick}`
-          }
-          onClose={() => setEditandoZonas(false)}
-          onGuardado={showToast}
-          onCambio={() => setZonasTick((t) => t + 1)}
-        />
-      </div>
-    );
-  } else if (vision.frames.length > 0) {
-    contenidoEscena = (
-      <div className="observation zone-overlay-wrap" aria-label="Visión de las góndolas">
-        {vision.video ? (
-          <>
-            <ZoneOverlay
-              zonas={zonasVista?.zonas}
-              referencia={zonasVista?.referencia}
-              frameUrl={`/vision-frames/${vision.frames[0] || ''}?v=${videoTick}`}
-              src={`/vision-frames/${vision.video}?v=${videoTick}`}
-              tipo="video"
-            />
-            <span className="frame-counter" style={{ bottom: 10 }}>
-              VISTA DEL MODELO
-            </span>
-          </>
-        ) : (
-          <>
-            <ZoneOverlay
-              zonas={zonasVista?.zonas}
-              referencia={zonasVista?.referencia}
-              frameUrl={`/vision-frames/${vision.frames[0] || ''}?v=${videoTick}`}
-              src={`/vision-frames/${vision.frames[visionIdx] || ''}?v=${videoTick}`}
-              tipo="img"
-            />
-            <span className="frame-counter" style={{ bottom: 10 }}>
-              VISTA DEL MODELO
-            </span>
-          </>
-        )}
-      </div>
-    );
-  } else if (preparado) {
-    contenidoEscena = (
-      <div className="observation" style={{ display: 'grid', placeItems: 'center' }}>
-        <p style={{ color: 'var(--muted)', fontSize: '.82rem', textAlign: 'center' }}>
-          Video cargado ({preparado.video}) — abrí el editor para
-          calibrar los polígonos y luego ejecutá el análisis.
-        </p>
-      </div>
-    );
-  } else {
-    contenidoEscena = (
-      <div className="observation" style={{ display: 'grid', placeItems: 'center' }}>
-        <p style={{ color: 'var(--muted)', fontSize: '.82rem', textAlign: 'center' }}>
-          La visión de las góndolas se generará al ejecutar el análisis.<br />
-          Sube un video o usa los datos existentes.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className="shell">
-      <aside className="rail">
+    <div className={`shell${sidebarCollapsed ? ' rail-collapsed' : ''}${mobileMenuOpen ? ' rail-open' : ''}`}>
+      <a className="skip-link" href="#main-content">Saltar al contenido principal</a>
+      <aside className="rail" id="main-sidebar" aria-label="Navegación principal">
         <div className="brand">
-          <div className="brand-mark">Z</div>
+          <div className="brand-mark">A</div>
           <div className="brand-copy">
-            <strong>ZoneMetrics</strong>
+            <strong>AlphaNode</strong>
             <span>RETAIL LAB</span>
           </div>
+          <button
+            type="button"
+            className="rail-toggle"
+            aria-label={sidebarCollapsed ? 'Expandir barra lateral' : 'Contraer barra lateral'}
+            aria-expanded={!sidebarCollapsed}
+            onClick={() => setSidebarCollapsed((value) => !value)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d={sidebarCollapsed ? 'm9 5 7 7-7 7' : 'm15 5-7 7 7 7'} /></svg>
+          </button>
         </div>
         <nav className="nav">
           {[
@@ -458,6 +324,8 @@ export default function App() {
               key={id}
               className={`nav-button${activeView === id ? ' active' : ''}`}
               onClick={() => changeView(id)}
+              aria-current={activeView === id ? 'page' : undefined}
+              title={sidebarCollapsed ? label : undefined}
             >
               <b>{num}</b>
               <span>{label}</span>
@@ -471,9 +339,21 @@ export default function App() {
         </div>
       </aside>
 
-      <main>
+      {mobileMenuOpen && <button type="button" className="rail-backdrop" aria-label="Cerrar menú de navegación" onClick={() => setMobileMenuOpen(false)} />}
+
+      <main id="main-content">
         <header className="topbar">
-          <div>
+          <button
+            type="button"
+            className="mobile-menu-toggle"
+            aria-label="Abrir menú de navegación"
+            aria-controls="main-sidebar"
+            aria-expanded={mobileMenuOpen}
+            onClick={() => setMobileMenuOpen(true)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+          </button>
+          <div className="topbar-title">
             <p className="eyebrow">Registro de comportamiento en tienda</p>
             <h1>Góndola<br />Inteligente</h1>
           </div>
@@ -497,12 +377,8 @@ export default function App() {
               <span>{fileName}</span>
             </label>
             <input id="videoInputB" type="file" accept="video/*" hidden onChange={handleFileChange} />
-            <button
-              className="run"
-              onClick={selectedFile ? handleUpload : handleAnalizar}
-              disabled={uploading || (!selectedFile && !preparado)}
-            >
-              {uploading ? 'Procesando…' : (selectedFile ? 'Cargar y calibrar zonas' : (preparado ? 'Analizar video subido' : 'Analizar video'))}
+            <button className="run" onClick={handleUpload} disabled={uploading || !selectedFile}>
+              {uploading ? 'Procesando…' : 'Analizar video'}
             </button>
           </div>
 
@@ -546,34 +422,36 @@ export default function App() {
             <div className="stage-main">
               <div className="section-head">
                 <h2>Escena analizada</h2>
-                <div className="section-head-actions">
-                  <span className="live">Pipeline activo</span>
-                  {(vision.frames.length > 0 || preparado) && (
-                    <button
-                      type="button"
-                      className="zone-edit-btn"
-                      onClick={() => {
-                        setEditandoZonas((v) => !v);
-                        setZonasTick((t) => t + 1);
-                      }}
-                    >
-                      {editandoZonas ? '✕ Cerrar editor' : '✎ Editar zonas'}
-                    </button>
-                  )}
-                </div>
+                <span className="live">Pipeline activo</span>
               </div>
-              {preparado && !uploading && (
-                <div className="listo-banner">
-                  <span>
-                    Video listo: <b>{preparado.video}</b>. Calibrá los polígonos
-                    sobre la vista previa y ejecutá el análisis con estas zonas.
+              {vision.frames.length > 0 ? (
+                <div className="observation vision-panel" aria-label="Visión de las góndolas">
+                  <img
+                    className="vision-video"
+                    src={`/vision-frames/${vision.frames[visionIdx] || ''}?v=${videoTick}`}
+                    alt="Visión de las góndolas"
+                  />
+                  <div className="vision-controls">
+                    <button type="button" onClick={() => setVisionPlay((p) => !p)}>
+                      {visionPlay ? '⏸ Pausa' : '▶ Reproducir'}
+                    </button>
+                    <span>Fotograma {visionIdx + 1} / {vision.frames.length}</span>
+                    <button type="button" onClick={() => setVisionIdx(0)}>
+                      Reiniciar
+                    </button>
+                  </div>
+                  <span className="frame-counter" style={{ bottom: 58 }}>
+                    FOTOGRAMA {visionIdx + 1} / {vision.frames.length}
                   </span>
-                  <button type="button" className="guardar" onClick={handleAnalizar}>
-                    ▶ Ejecutar análisis
-                  </button>
+                </div>
+              ) : (
+                <div className="observation" style={{ display: 'grid', placeItems: 'center' }}>
+                  <p style={{ color: 'var(--muted)', fontSize: '.82rem', textAlign: 'center' }}>
+                    La visión de las góndolas se generará al ejecutar el análisis.<br />
+                    Sube un video o usa los datos existentes.
+                  </p>
                 </div>
               )}
-{contenidoEscena}
             </div>
             <aside className="stage-side">
               <div className="event-head">
@@ -735,7 +613,7 @@ export default function App() {
                 <p className="eyebrow">Inteligencia de góndola</p>
                 <h2>Informe de comportamiento e interacción en tienda</h2>
                 <p>Análisis automatizado de circulación, permanencia e interacción física con productos a partir de video pregrabado.</p>
-                <button className="download" onClick={() => window.print()}>
+                <button className="download" onClick={handlePrintReport}>
                   Imprimir / guardar PDF
                 </button>
               </div>
@@ -863,6 +741,7 @@ export default function App() {
         <div className={`toast${toastVisible ? ' show' : ''}`} role="status" aria-live="polite">
           {toast}
         </div>
+        <AccessibilityPanel />
       </main>
     </div>
   );

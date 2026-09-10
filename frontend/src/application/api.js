@@ -1,23 +1,30 @@
-// ============================================================================
-// APPLICATION / api - caso de uso: obtener las metricas del dashboard.
-// Aisla el fetch (adaptador) del resto de la presentacion.
-// ============================================================================
+// APPLICATION / api
+// Comunicación del frontend con el backend de Góndola Inteligente.
 
 import { mergeZones } from '../domain/zones';
 import { buildAnalytics } from '../domain/analytics';
 
 const TIMEOUT_MS = 15000;
 
-// Fetch con timeout (AbortController). Devuelve {resp, cuerpo}; un 2xx sin
-// cuerpo (p. ej. 202/204) devuelve cuerpo = {} en vez de reventar en json().
+// Realiza una petición con tiempo máximo de espera.
 async function pedir(url, opciones = {}) {
   const { timeoutMs = TIMEOUT_MS, ...resto } = opciones;
   const controlador = new AbortController();
-  const temporizador = setTimeout(() => controlador.abort(), timeoutMs);
+
+  const temporizador = setTimeout(
+    () => controlador.abort(),
+    timeoutMs
+  );
+
   try {
-    const resp = await fetch(url, { ...resto, signal: controlador.signal });
+    const resp = await fetch(url, {
+      ...resto,
+      signal: controlador.signal,
+    });
+
     const texto = await resp.text();
     let cuerpo = {};
+
     if (texto) {
       try {
         cuerpo = JSON.parse(texto);
@@ -25,25 +32,28 @@ async function pedir(url, opciones = {}) {
         cuerpo = { _sin_formato: texto };
       }
     }
+
     return { resp, cuerpo };
   } finally {
     clearTimeout(temporizador);
   }
 }
 
+// Obtiene y transforma las métricas para el dashboard.
 export async function cargarDatos() {
   let { resp, cuerpo } = await pedir('/api/datos');
   let origen = 'backend';
 
   if (resp.status === 404) {
-    // El backend no tiene metricas todavia (no se ha analizado nada o no esta
-    // activo): se muestran los datos de ejemplo y la UI lo anuncia. Cualquier
-    // otro error (500, red, timeout) SI se propaga para no enmascararlo.
     ({ resp, cuerpo } = await pedir('/datos.json'));
-    if (!resp.ok) throw new Error('Sin datos del backend ni ejemplo disponible.');
+
+    if (!resp.ok) {
+      throw new Error('Sin datos del backend ni ejemplo disponible.');
+    }
+
     origen = 'demo';
   } else if (!resp.ok) {
-    throw new Error(`Error ${resp.status} al cargar los datos`);
+    throw new Error(`Error ${resp.status} al cargar los datos.`);
   }
 
   return {
@@ -51,75 +61,100 @@ export async function cargarDatos() {
     visitors: Number(cuerpo.total_personas_registradas) || 0,
     pickups: Number(cuerpo.embudo_interaccion?.total_pick_ups) || 0,
     zones: mergeZones(cuerpo.analisis_zonas),
-    heatMatrix: cuerpo.heatmap_global?.length > 0 ? cuerpo.heatmap_global : [],
+
+    heatMatrix: cuerpo.heatmap_global?.length > 0
+      ? cuerpo.heatmap_global
+      : [],
+
     analytics: buildAnalytics(cuerpo),
     recomendaciones: cuerpo.recomendaciones || null,
     generadoEn: cuerpo.generado_en || null,
     videoInfo: cuerpo.video || null,
-    evidencias: (cuerpo.detalle_por_persona || []).flatMap((persona) =>
-      (persona.eventos || [])
-        .filter((evento) => evento.tipo === 'Producto Adquirido' || evento.tipo === 'Devolver el producto')
-        .map((evento) => ({ ...evento, idPersona: persona.id_persona }))
-    ).sort((a, b) => (Number(a.frame) || 0) - (Number(b.frame) || 0)),
+
+    evidencias: (cuerpo.detalle_por_persona || [])
+      .flatMap((persona) =>
+        (persona.eventos || [])
+          .filter(
+            (evento) =>
+              evento.tipo === 'Producto Adquirido' ||
+              evento.tipo === 'Devolver el producto'
+          )
+          .map((evento) => ({
+            ...evento,
+            idPersona: persona.id_persona,
+          }))
+      )
+      .sort(
+        (a, b) =>
+          (Number(a.frame) || 0) - (Number(b.frame) || 0)
+      ),
   };
 }
 
+// Consulta el progreso del análisis.
 export async function obtenerEstado() {
   const { resp, cuerpo } = await pedir('/api/estado');
-  if (!resp.ok) return null;
+
+  if (!resp.ok) {
+    throw new Error(
+      cuerpo?.detail ||
+      `Error ${resp.status} al consultar el estado del análisis.`
+    );
+  }
+
   return cuerpo;
 }
 
+// Sube el video e inicia el análisis usando las zonas guardadas.
 export async function subirVideo(archivo) {
   const formData = new FormData();
   formData.append('archivo', archivo);
+
   const { resp, cuerpo } = await pedir('/api/video', {
     method: 'POST',
     body: formData,
     timeoutMs: 120000,
   });
+
   if (!resp.ok) {
-    const detalle = cuerpo?.detail || cuerpo?.estado || `Error ${resp.status}`;
-    throw new Error(detalle);
+    throw new Error(
+      cuerpo?.detail ||
+      cuerpo?.estado ||
+      `Error ${resp.status} al subir el video.`
+    );
   }
-  return cuerpo;
-}
 
-export async function analizarVideo() {
-  const { resp, cuerpo } = await pedir('/api/analizar', {
-    method: 'POST',
-    timeoutMs: 20000,
-  });
-  if (!resp.ok) {
-    const detalle = cuerpo?.detail || cuerpo?.mensaje || `Error ${resp.status}`;
-    throw new Error(detalle);
+  // Backend actual: la carga prepara el video.
+  // Una segunda petición inicia el procesamiento YOLO.
+  if (cuerpo.estado === 'listo_para_analizar') {
+    const inicio = await pedir('/api/analizar', {
+      method: 'POST',
+    });
+
+    if (!inicio.resp.ok) {
+      throw new Error(
+        inicio.cuerpo?.detail ||
+        inicio.cuerpo?.estado ||
+        `Error ${inicio.resp.status} al iniciar el análisis.`
+      );
+    }
+
+    if (inicio.cuerpo.estado !== 'iniciado') {
+      throw new Error(
+        'El backend no confirmó el inicio del análisis.'
+      );
+    }
+
+    return inicio.cuerpo;
   }
-  return cuerpo;
-}
 
-export async function cargarZonas() {
-  const { resp, cuerpo } = await pedir('/api/zonas');
-  if (!resp.ok) throw new Error('No se pudieron cargar las zonas.');
-  return cuerpo;
-}
-
-export async function guardarZonas(zonas) {
-  const { resp, cuerpo } = await pedir('/api/zonas', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ zonas }),
-  });
-  if (!resp.ok) {
-    throw new Error(cuerpo?.detail || `Error ${resp.status} al guardar zonas.`);
+  // Compatibilidad con el backend anterior:
+  // la subida ya iniciaba el procesamiento automáticamente.
+  if (cuerpo.estado === 'iniciado') {
+    return cuerpo;
   }
-  return cuerpo;
-}
 
-export async function restablecerZonas() {
-  const { resp, cuerpo } = await pedir('/api/zonas/restablecer', {
-    method: 'POST',
-    timeoutMs: 20000,
-  });
-  if (!resp.ok) throw new Error('No se pudieron restablecer las zonas.');
-  return cuerpo;
+  throw new Error(
+    'El video se cargó, pero no se confirmó el inicio del análisis.'
+  );
 }
