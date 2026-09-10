@@ -3,7 +3,7 @@
 // Logica pura en domain/, casos de uso en application/.
 // ============================================================================
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { lazy, Suspense, useState, useEffect, useMemo, useCallback } from 'react';
 import '../App.css';
 import {
   zoneView,
@@ -13,6 +13,8 @@ import {
 } from '../domain/zones';
 import { analizarZona, sugerirPlanograma } from '../domain/agente';
 import { cargarDatos, subirVideo, obtenerEstado } from '../application/api';
+
+const AnalyticsCharts = lazy(() => import('./AnalyticsCharts.jsx'));
 
 const ZONE_TEMP_MAP = {
   caliente: 'hot',
@@ -27,6 +29,7 @@ export default function App() {
   const [evidences, setEvidences] = useState([]);
   const [analysisMeta, setAnalysisMeta] = useState({ generadoEn: null, videoInfo: null });
   const [recomendaciones, setRecomendaciones] = useState(null);
+  const [analytics, setAnalytics] = useState({ funnel: [], behavior: [], flows: { nodes: [], links: [] } });
   const [visitors, setVisitors] = useState(0);
   const [pickups, setPickups] = useState(0);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -100,6 +103,29 @@ export default function App() {
     return { busiest, mostInteractive, returns };
   }, [zoneData]);
 
+  const reportMetrics = useMemo(() => {
+    const zoneEntries = zoneData.reduce((total, zone) => total + (Number(zone.visits) || 0), 0);
+    const weightedDwell = zoneEntries > 0
+      ? zoneData.reduce(
+        (total, zone) => total + (Number(zone.dwell) || 0) * (Number(zone.visits) || 0),
+        0
+      ) / zoneEntries
+      : 0;
+    const stopped = analytics.funnel?.find(
+      (stage) => stage.name === 'Parada frente a góndola'
+    )?.value || 0;
+    return {
+      zoneEntries,
+      weightedDwell,
+      stopped,
+      kept: Math.max(0, pickups - executiveSummary.returns),
+    };
+  }, [analytics.funnel, executiveSummary.returns, pickups, zoneData]);
+
+  const reportDate = analysisMeta.generadoEn
+    ? new Date(analysisMeta.generadoEn).toLocaleString('es-CO')
+    : new Date().toLocaleString('es-CO');
+
   const sugerenciaZona = (zone) =>
     conNombresVisibles(
       recomendaciones?.por_zona?.[zone.rawId] || analizarZona(zone)
@@ -112,7 +138,7 @@ export default function App() {
       const sec = (seg % 60).toFixed(0).padStart(2, '0');
       return {
         time: `${min}:${sec}`,
-        label: e.tipo === 'Devolver el producto' ? 'Producto adquirido' : 'Mano en estante',
+        label: e.tipo === 'Devolver el producto' ? 'Producto devuelto' : 'Producto retirado',
         zona: conNombresVisibles(e.zona || 'Zona sin identificar'),
         id: e.idPersona,
       };
@@ -128,9 +154,10 @@ export default function App() {
       return {
         id: `ID ${String(e.idPersona).padStart(2, '0')}`,
         time: `${min}:${sec}`,
-        label: isReturn ? 'Producto devuelto' : 'Mano en estante',
+        label: isReturn ? 'Producto devuelto' : 'Producto retirado',
         zona: conNombresVisibles(e.zona || 'Zona sin identificar'),
-        badge: isReturn ? 'Devolución' : 'Contacto',
+        badge: isReturn ? 'Devolución' : 'Toma',
+        frame: Number(e.frame) || 0,
         isTransit: false,
       };
     });
@@ -141,6 +168,7 @@ export default function App() {
     setPickups(data.pickups);
     setZoneData(data.zones);
     setRecomendaciones(data.recomendaciones);
+    setAnalytics(data.analytics);
     setEvidences(data.evidencias || []);
     setAnalysisMeta({ generadoEn: data.generadoEn, videoInfo: data.videoInfo });
     setDemoMode(data.origen === 'demo');
@@ -192,6 +220,10 @@ export default function App() {
       setVisitors(0);
       setPickups(0);
       setZoneData([]);
+      setRecomendaciones(null);
+      setEvidences([]);
+      setAnalytics({ funnel: [], behavior: [], flows: { nodes: [], links: [] } });
+      setDemoMode(false);
       setUploadMsg(`Video subido. ${res.mensaje || 'Análisis en segundo plano.'}`);
       for (let i = 0; i < 120; i++) {
         await new Promise((r) => setTimeout(r, 2500));
@@ -248,9 +280,10 @@ export default function App() {
         <nav className="nav">
           {[
             ['summary', '01', 'Lectura general'],
-            ['spatial', '02', 'Plano de tienda'],
-            ['evidence', '03', 'Evidencias'],
-            ['report', '04', 'Informe'],
+            ['analytics', '02', 'Analítica'],
+            ['spatial', '03', 'Plano de tienda'],
+            ['evidence', '04', 'Evidencias'],
+            ['report', '05', 'Informe'],
           ].map(([id, num, label]) => (
             <button
               key={id}
@@ -405,6 +438,21 @@ export default function App() {
           </div>
         </section>
 
+        {/* =================== ANALYTICS =================== */}
+        <section className={`page${activeView === 'analytics' ? ' active' : ''}`} id="analytics">
+          <div className="page-title">
+            <h2>Analítica de comportamiento</h2>
+            <p>Cuatro lecturas complementarias del recorrido, la permanencia y la interacción física observada.</p>
+          </div>
+          <Suspense fallback={<div className="charts-loading">Preparando visualizaciones…</div>}>
+            <AnalyticsCharts analytics={analytics} zoneData={zoneData} />
+          </Suspense>
+          <div className="analytics-method">
+            <b>Cómo leer estas gráficas</b>
+            <p>Las cifras describen eventos observados por visión computacional. “Sin devolución” no equivale por sí sola a una compra confirmada; esa validación requeriría integración con el sistema POS.</p>
+          </div>
+        </section>
+
         {/* =================== SPATIAL =================== */}
         <section className={`page${activeView === 'spatial' ? ' active' : ''}`} id="spatial">
           <div className="page-title">
@@ -472,7 +520,7 @@ export default function App() {
                   <time>{row.time}</time>
                   <div>
                     <strong>{row.label}</strong>
-                    <small>{row.zona} · fotograma</small>
+                    <small>{row.zona} · fotograma {row.frame}</small>
                   </div>
                   <span className={`badge${row.isTransit ? ' transit' : ''}`}>
                     {row.badge}
@@ -494,44 +542,150 @@ export default function App() {
             <h2>Informe ejecutivo</h2>
             <p>Resumen listo para compartir con el equipo de space management.</p>
           </div>
-          <div className="report-sheet">
-            <article className="report-lead">
-              <p className="eyebrow">Recomendación comercial</p>
-              <h3>Redistribuir el facing según interés observado.</h3>
-              <p>{planograma || 'Analiza un video para obtener recomendaciones personalizadas.'}</p>
-              <button className="download" onClick={() => window.print()}>
-                Imprimir / guardar PDF
-              </button>
-            </article>
-            <div className="report-list">
-              <div className="report-item">
-                <b>Hallazgo principal</b>
-                <p>
-                  {executiveSummary.busiest
-                    ? `La ${executiveSummary.busiest.id} concentra la mayor actividad con ${executiveSummary.busiest.visits} entradas.`
-                    : 'Sin datos suficientes aún.'}
-                </p>
+          <div className="report-document">
+            <div className="report-cover">
+              <header className="report-brandbar">
+                <div className="report-brand">
+                  <span>A</span>
+                  <div><strong>AlphaNode</strong><small>RETAIL LAB · HACKTECH 5.0</small></div>
+                </div>
+                <div className="report-meta">
+                  <b>INFORME #GI-001</b>
+                  <span>{reportDate}</span>
+                  <span>
+                    {analysisMeta.videoInfo
+                      ? `${analysisMeta.videoInfo.ancho || '—'}×${analysisMeta.videoInfo.alto || '—'} · ${Number(analysisMeta.videoInfo.fps || 0).toFixed(1)} FPS`
+                      : 'Video pregrabado'}
+                  </span>
+                </div>
+              </header>
+
+              <div className="report-hero">
+                <p className="eyebrow">Inteligencia de góndola</p>
+                <h2>Informe de comportamiento e interacción en tienda</h2>
+                <p>Análisis automatizado de circulación, permanencia e interacción física con productos a partir de video pregrabado.</p>
+                <button className="download" onClick={() => window.print()}>
+                  Imprimir / guardar PDF
+                </button>
               </div>
-              <div className="report-item">
-                <b>Oportunidad</b>
-                <p>
-                  {executiveSummary.mostInteractive
-                    ? `${executiveSummary.mostInteractive.id} registra ${executiveSummary.mostInteractive.pick_ups} tomas de producto.`
-                    : 'No se detectaron tomas en el análisis actual.'}
-                </p>
+
+              <div className="report-kpis">
+                <article><span>Personas rastreadas</span><b>{visitors}</b></article>
+                <article><span>Entradas a zonas</span><b>{reportMetrics.zoneEntries}</b></article>
+                <article><span>Tomas detectadas</span><b>{pickups}</b></article>
+                <article><span>Tasa de interacción</span><b>{interactionRate}%</b></article>
+                <article><span>Tasa de devolución</span><b>{rejectionRate}%</b></article>
+                <article><span>Permanencia promedio</span><b>{reportMetrics.weightedDwell.toFixed(1)} s</b></article>
               </div>
-              <div className="report-item">
-                <b>Resultado</b>
-                <p>
-                  {pickups} tomas · {executiveSummary.returns} devoluciones
-                  {visitors > 0 ? ` — ${visitors} visitantes analizados` : ''}.
-                </p>
+
+              <div className="report-sheet">
+                <article className="report-lead">
+                  <p className="eyebrow">Recomendación comercial</p>
+                  <h3>Redistribuir el facing según el interés observado.</h3>
+                  <p>{planograma || 'Analiza un video para obtener recomendaciones personalizadas.'}</p>
+                </article>
+                <div className="report-list">
+                  <div className="report-item">
+                    <b>Hallazgo principal</b>
+                    <p>
+                      {executiveSummary.busiest
+                        ? `La ${executiveSummary.busiest.id} concentra la mayor actividad con ${executiveSummary.busiest.visits} entradas.`
+                        : 'Sin datos suficientes aún.'}
+                    </p>
+                  </div>
+                  <div className="report-item">
+                    <b>Interacción</b>
+                    <p>
+                      {executiveSummary.mostInteractive
+                        ? `${executiveSummary.mostInteractive.id} registra ${executiveSummary.mostInteractive.pick_ups} tomas de producto.`
+                        : 'No se detectaron tomas en el análisis actual.'}
+                    </p>
+                  </div>
+                  <div className="report-item">
+                    <b>Resultado observado</b>
+                    <p>{reportMetrics.kept} tomas sin devolución · {executiveSummary.returns} devoluciones · {reportMetrics.stopped} paradas frente a góndola.</p>
+                  </div>
+                </div>
               </div>
-              <div className="report-item">
-                <b>Privacidad</b>
-                <p>Los IDs son temporales; no se identifican rostros, emociones ni información biométrica.</p>
-              </div>
+
+              <section className="report-block">
+                <div className="report-section-head">
+                  <p>Rendimiento por zona</p>
+                  <span>Comparación del periodo analizado</span>
+                </div>
+                <div className="report-table-wrap">
+                  <table className="report-table">
+                    <thead><tr><th>Góndola</th><th>Clasificación</th><th>Entradas</th><th>Permanencia</th><th>Tomas</th><th>Devoluciones</th></tr></thead>
+                    <tbody>
+                      {zoneData.map((zone) => (
+                        <tr key={zone.id}>
+                          <td>{zone.id}</td>
+                          <td><span className={`report-temp ${zone.classification}`}>{zone.classification}</span></td>
+                          <td>{zone.visits}</td>
+                          <td>{Number(zone.dwell || 0).toFixed(1)} s</td>
+                          <td>{zone.pick_ups}</td>
+                          <td>{zone.put_backs}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
             </div>
+
+            <section className="report-visuals report-page-break">
+              <div className="report-section-head">
+                <p>Lectura gráfica</p>
+                <span>Embudo, permanencia, comportamiento y recorridos</span>
+              </div>
+              <Suspense fallback={<div className="charts-loading">Preparando visualizaciones…</div>}>
+                <AnalyticsCharts analytics={analytics} zoneData={zoneData} />
+              </Suspense>
+            </section>
+
+            <section className="report-block report-page-break">
+              <div className="report-section-head">
+                <p>Evidencias de interacción</p>
+                <span>{evidenceRows.length} eventos documentados</span>
+              </div>
+              <div className="report-evidence-list">
+                {evidenceRows.length > 0 ? evidenceRows.slice(0, 12).map((row, index) => (
+                  <div className="report-evidence-row" key={`${row.id}-${row.frame}-${index}`}>
+                    <b>{row.id}</b><time>{row.time}</time><span>{row.label}</span><small>{row.zona}</small><em>Frame {row.frame}</em>
+                  </div>
+                )) : <p className="report-no-data">No se documentaron tomas o devoluciones en este análisis.</p>}
+              </div>
+              {evidenceRows.length > 12 && <p className="report-more">Se muestran 12 de {evidenceRows.length} eventos registrados.</p>}
+            </section>
+
+            <section className="report-method report-page-break">
+              <article>
+                <p className="eyebrow">Metodología</p>
+                <h3>Procesamiento automatizado posterior a la carga</h3>
+                <p>El sistema detecta y rastrea personas con IDs temporales, asigna sus recorridos a las zonas configuradas, calcula permanencia y aplica reglas temporales para identificar aproximaciones, tomas y devoluciones.</p>
+              </article>
+              <article>
+                <p className="eyebrow">Privacidad por diseño</p>
+                <h3>Analítica sin identificación biométrica</h3>
+                <p>No se reconocen rostros, identidades ni emociones. Los IDs son efímeros, el procesamiento se ejecuta localmente y los fotogramas utilizados para evidencia se presentan anonimizados.</p>
+              </article>
+              <article>
+                <p className="eyebrow">Alcance y limitaciones</p>
+                <h3>Resultados sujetos a validación operativa</h3>
+                <p>La exactitud depende del ángulo de cámara, iluminación, oclusiones, calibración de zonas y estabilidad del tracking. “Sin devolución observada” no confirma una compra; para ello se requiere integración con POS.</p>
+              </article>
+              <article>
+                <p className="eyebrow">Interpretación</p>
+                <h3>Entradas a zonas no equivalen a personas</h3>
+                <p>Una persona puede recorrer varias góndolas y generar múltiples entradas. Las recomendaciones son reglas de apoyo para space management y deben contrastarse con ventas, inventario y validación humana.</p>
+              </article>
+            </section>
+
+            <footer className="report-footer">
+              <span>AlphaNode · Góndola Inteligente</span>
+              <span>Scapder · HackTech 5.0 2026</span>
+              <span>Privacidad por diseño</span>
+            </footer>
           </div>
         </section>
 

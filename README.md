@@ -220,6 +220,22 @@ solo la web los traduce al nombre visible (`ZONE_NAME_MAP`):
 - **Heatmap global** promedio de tráfico (grilla), confinado a los pasillos del plano 3D.
 - **Detalle por persona** (trayectoria y acciones).
 
+### Analítica visual con Apache ECharts
+
+La navegación lateral incluye una sección independiente de **Analítica** con
+cuatro visualizaciones calculadas desde el JSON real del pipeline:
+
+- **Funnel:** tránsito observado → parada → aproximación → toma → toma sin
+  devolución observada.
+- **Barras:** permanencia promedio por góndola, con una línea de referencia del
+  promedio del análisis.
+- **Donut:** personas sin toma, con toma sin devolución y con toma + devolución.
+- **Sankey:** transiciones consecutivas de los IDs temporales entre góndolas.
+
+La última etapa del funnel no se denomina “compra”: la ausencia de una
+devolución en cámara no confirma una venta. Para medir conversión comercial real
+sería necesario integrar el resultado con el sistema POS.
+
 ### Agente determinista
 
 Ni el backend ni el frontend llaman a un LLM: las recomendaciones se derivan con
@@ -306,5 +322,7 @@ Proyecto del equipo **AlphaNode** — HackTech 5.0 · 2026.
 - Wendy Mariana Vargas Ramírez
 
 ## Se corre backend con y en la carpeta completa
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
 python -m uvicorn backend.main:app --reload
  ## y frontend con npm run dev y en la carpeta \frontend

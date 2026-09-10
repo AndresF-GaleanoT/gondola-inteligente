@@ -4,6 +4,7 @@
 // ============================================================================
 
 import { mergeZones } from '../domain/zones';
+import { buildAnalytics } from '../domain/analytics';
 
 const TIMEOUT_MS = 15000;
 
@@ -51,6 +52,7 @@ export async function cargarDatos() {
     pickups: Number(cuerpo.embudo_interaccion?.total_pick_ups) || 0,
     zones: mergeZones(cuerpo.analisis_zonas),
     heatMatrix: cuerpo.heatmap_global?.length > 0 ? cuerpo.heatmap_global : [],
+    analytics: buildAnalytics(cuerpo),
     recomendaciones: cuerpo.recomendaciones || null,
     generadoEn: cuerpo.generado_en || null,
     videoInfo: cuerpo.video || null,
