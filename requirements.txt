@@ -1,0 +1,15 @@
+ultralytics>=8.3
+opencv-python>=4.9
+roboflow>=1.1.0
+numpy>=1.26
+PyYAML>=6.0
+
+# Backend que sirve los datos YOLO al frontend
+fastapi>=0.111
+uvicorn>=0.30
+python-multipart>=0.0.9
+
+# Aceleracion GPU (opcional pero muy recomendado, RTX 2060 OK):
+# Instala torch con CUDA 12.6 (NO usar opencv-python-headless):
+#   pip install "torch==2.13.0+cu126" "torchvision==0.28.0+cu126" --index-url https://download.pytorch.org/whl/cu126
+#   pip uninstall -y opencv-python-headless   # (evita que opencv.ImShow deje de funcionar)
