@@ -13,7 +13,7 @@ import {
   restablecerZonas,
 } from '../application/api';
 
-const COLORES = ['#d9ed55', '#8ab4ff', '#ff8f6b'];
+const COLORES_ZONA = ['#2bff88', '#ffb000', '#ff4545'];
 
 const orientacion = (a, b, c) =>
   (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
@@ -253,15 +253,15 @@ export default function ZoneEditor({ frameUrl, onClose, onGuardado, onCambio }) 
           onPointerCancel={onPointerUp}
         >
           {zonas?.map((z, i) => (
-            <g key={z.id} fill={COLORES[i]}>
+            <g key={z.id} fill={COLORES_ZONA[i]}>
               <polygon
                 className={`zone-fill${invalidos.includes(i) ? ' invalido' : ''}`}
-                stroke={COLORES[i]}
+                stroke={COLORES_ZONA[i]}
                 points={pts(z.poligono)}
               />
               <polygon
                 className={`zone-agarro${invalidos.includes(i) ? ' invalido' : ''}`}
-                stroke={COLORES[i]}
+                stroke={COLORES_ZONA[i]}
                 points={pts(z.agarro)}
               />
               {z.poligono.map((p, v) => {

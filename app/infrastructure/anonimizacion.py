@@ -60,23 +60,24 @@ def _cajas_cabeza_rastreadas(results, cabeza_suave):
               if results[0].keypoints is not None
               and len(results[0].keypoints) else None)
     salida = []
-    activos = set()
-    for i, caja in enumerate(cajas.xyxy.cpu().numpy()):
-        tid = int(cajas.id[i])
-        activos.add(tid)
-        punto, conf = (_mejor_punto_cabeza(puntos[i])
+    ids_activos = set()
+    for indice, caja in enumerate(cajas.xyxy.cpu().numpy()):
+        tid = int(cajas.id[indice])
+        ids_activos.add(tid)
+        punto, conf = (_mejor_punto_cabeza(puntos[indice])
                        if puntos is not None else (None, 0.0))
-        nueva = _bbox_cabeza(caja, punto)
-        previo = cabeza_suave.get(tid)
-        if previo is None:
-            cabeza_suave[tid] = nueva
-            salida.append(nueva)
+        caja_nueva = _bbox_cabeza(caja, punto)
+        caja_previa = cabeza_suave.get(tid)
+        if caja_previa is None:
+            cabeza_suave[tid] = caja_nueva
+            salida.append(caja_nueva)
         else:
-            a = SUAVIZADO_CABEZA
-            suave = tuple(a * n + (1 - a) * p for n, p in zip(nueva, previo))
-            cabeza_suave[tid] = suave
-            salida.append(suave)
-    for tid in [t for t in cabeza_suave if t not in activos]:
+            factor = SUAVIZADO_CABEZA
+            caja_suave = tuple(factor * nuevo + (1 - factor) * previo
+                               for nuevo, previo in zip(caja_nueva, caja_previa))
+            cabeza_suave[tid] = caja_suave
+            salida.append(caja_suave)
+    for tid in [t for t in cabeza_suave if t not in ids_activos]:
         del cabeza_suave[tid]
     return salida
 
@@ -111,8 +112,8 @@ def cajas_cabeza_frame(results):
               if results[0].keypoints is not None
               and len(results[0].keypoints) else None)
     salida = []
-    for i, caja in enumerate(cajas.xyxy.cpu().numpy()):
-        punto, _ = (_mejor_punto_cabeza(puntos[i])
+    for indice, caja in enumerate(cajas.xyxy.cpu().numpy()):
+        punto, _ = (_mejor_punto_cabeza(puntos[indice])
                     if puntos is not None else (None, 0.0))
         salida.append(_bbox_cabeza(caja, punto))
     return salida

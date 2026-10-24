@@ -32,7 +32,7 @@ def _escribir_estado(ruta, run_id, estado, **extra):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Pipeline YOLO de la Góndola Inteligente")
+    parser = argparse.ArgumentParser(description="Pipeline YOLO de RetailVision Edge AI (Góndola Inteligente)")
     parser.add_argument("--video", default=None, help="Ruta opcional del video a analizar")
     parser.add_argument("--no-ventana", action="store_true",
                         help="Modo headless: no abre ventana OpenCV (procesa "
@@ -82,13 +82,13 @@ def main():
                      progreso_pct=100)
 
     if args.gt:
-        res = validar_metricas(
+        resultado_validacion = validar_metricas(
             json.load(open(JSON_METRICAS, encoding="utf-8")),
             ruta_gt=args.gt, tol=args.tol,
             umbral_f1=args.umbral_f1,
             sanity=not args.no_sanity,
         )
-        if args.umbral_f1 is not None and not (res["f1_ok"] and res["sanity_ok"]):
+        if args.umbral_f1 is not None and not (resultado_validacion["f1_ok"] and resultado_validacion["sanity_ok"]):
             sys.exit("VALIDACION NO SUPERADA: F1 por debajo del umbral o "
                      "incoherencias de sanity.")
 

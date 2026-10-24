@@ -16,21 +16,21 @@ export const ZONE_NAME_MAP = Object.fromEntries(
 
 // Coercion numerica defensiva: el backend puede mandar strings; la UI nunca
 // debe tocar .toFixed sobre un valor no numerico.
-function num(v) {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
+function num(valor) {
+  const numerico = Number(valor);
+  return Number.isFinite(numerico) ? numerico : 0;
 }
 
 export function mergeZones(analisis) {
-  const list = analisis || [];
-  if (list.length > 0) {
+  const lista = analisis || [];
+  if (lista.length > 0) {
     // Datos reales del backend (YOLO). El nombre/layout mostrado se define AQUI
     // en la web (ZONE_NAME_MAP por id del pipeline) y no en el backend.
-    return list.map((raw, i) => {
+    return lista.map((raw, indice) => {
       const idRaw = raw.id || '';
-      const { area } = areaDeZona(idRaw, LAYOUT_DEFAULT, i);
+      const { area } = areaDeZona(idRaw, LAYOUT_DEFAULT, indice);
       return {
-        id: ZONE_NAME_MAP[idRaw] || idRaw || `Zona ${i + 1}`,
+        id: ZONE_NAME_MAP[idRaw] || idRaw || `Zona ${indice + 1}`,
         rawId: idRaw,
         area,
         classification: raw.clasificacion || 'fria',
@@ -84,8 +84,8 @@ export function zoneView(zone) {
 // varios productos, pero el embudo habla de la proporcion de ese grupo objetivo).
 // El campo se interpreta como CONSIDERACION: tomas devueltas / total tomas
 // (tocar y devolver = el producto atrajo la mano aunque no cerrara la compra).
-function capPct(value) {
-  return Math.min(100, Math.max(0, Math.round(value)));
+function capPct(valor) {
+  return Math.min(100, Math.max(0, Math.round(valor)));
 }
 
 export function calcInteractionRate(visitors, pickups) {
@@ -94,7 +94,7 @@ export function calcInteractionRate(visitors, pickups) {
 
 export function calcRejectionRate(zoneData) {
   if (!zoneData.length) return 0;
-  const pickups = zoneData.reduce((acc, z) => acc + num(z.pick_ups), 0);
-  const putbacks = zoneData.reduce((acc, z) => acc + num(z.put_backs), 0);
-  return pickups > 0 ? capPct((putbacks / pickups) * 100) : 0;
+  const totalPickups = zoneData.reduce((acum, zona) => acum + num(zona.pick_ups), 0);
+  const totalPutbacks = zoneData.reduce((acum, zona) => acum + num(zona.put_backs), 0);
+  return totalPickups > 0 ? capPct((totalPutbacks / totalPickups) * 100) : 0;
 }

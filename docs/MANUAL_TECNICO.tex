@@ -1,0 +1,658 @@
+\documentclass[11pt,a4paper]{report}
+
+% ============================================================================
+% RetailVision Edge AI — Manual Técnico
+% Universidad Santo Tomás, Seccional Tunja
+% ============================================================================
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[spanish,es-noindentfirst]{babel}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{array}
+\usepackage{colortbl}
+\usepackage{microtype}
+\sloppy
+
+% --- Paleta (coherente con el dashboard: acento ámbar/naranja) ------------
+\definecolor{rvAccent}{HTML}{C76A00}
+\definecolor{rvAccentDark}{HTML}{8A4600}
+\definecolor{rvInk}{HTML}{2C3242}
+\definecolor{rvMuted}{HTML}{5B6478}
+\definecolor{rvLine}{HTML}{CCD4E2}
+\definecolor{rvBg}{HTML}{F7F8FA}
+\definecolor{rvCodeBg}{HTML}{F2F3F6}
+
+% --- Tipografía de títulos --------------------------------------------------
+\titleformat{\chapter}[display]
+  {\normalfont\bfseries\color{rvInk}}
+  {\color{rvAccent}\Large\chaptertitlename\ \thechapter}
+  {6pt}{\Huge}
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{rvInk}}{\thesection}{0.6em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{rvAccentDark}}{\thesubsection}{0.6em}{}
+
+% --- Encabezados -------------------------------------------------------------
+\setlength{\headheight}{14.5pt}
+\addtolength{\topmargin}{-0.5pt}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\fancyhead[L]{\footnotesize\color{rvMuted} RetailVision Edge AI}
+\fancyhead[R]{\footnotesize\color{rvMuted} \leftmark}
+\renewcommand{\chaptermark}[1]{\markboth{#1}{}}
+\fancyfoot[C]{\small\color{rvMuted} \thepage}
+
+% --- Bloques de código -------------------------------------------------------
+\lstdefinestyle{rvcode}{
+  backgroundcolor=\color{rvCodeBg},
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{rvAccentDark}\bfseries,
+  commentstyle=\color{rvMuted}\itshape,
+  stringstyle=\color{rvAccent},
+  numberstyle=\tiny\color{rvMuted},
+  numbers=left,
+  numbersep=8pt,
+  frame=single,
+  rulecolor=\color{rvLine},
+  breaklines=true,
+  breakatwhitespace=false,
+  showstringspaces=false,
+  tabsize=2,
+  xleftmargin=12pt,
+  xrightmargin=4pt,
+  framexleftmargin=8pt,
+}
+\lstset{style=rvcode}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=rvAccentDark,
+  urlcolor=rvAccentDark,
+  citecolor=rvAccentDark,
+  pdftitle={RetailVision Edge AI -- Manual Tecnico},
+  pdfauthor={Equipo RetailVision Edge AI -- Universidad Santo Tomas, Seccional Tunja},
+}
+
+\newcommand{\rvnota}[1]{%
+  \par\noindent\fcolorbox{rvAccent}{rvCodeBg}{%
+    \parbox{0.95\linewidth}{\small \textbf{\color{rvAccentDark}Nota:} #1}%
+  }\par\vspace{4pt}
+}
+
+\setlist[itemize]{leftmargin=1.4em}
+\setlist[enumerate]{leftmargin=1.6em}
+
+\title{\textbf{\Huge RetailVision Edge AI}\\[6pt]
+  \Large Manual Técnico\\[4pt]
+  \large Sistema de Visión Computacional para \textit{Space Management}\\
+  y Analítica de Tráfico en Retail}
+\author{Equipo RetailVision Edge AI\\
+  Universidad Santo Tomás, Seccional Tunja\\
+  Proyecto de Investigación / Semillero\\
+  Docente asesor: Sergio Arley Puerto Moreno}
+\date{2026}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\Huge\bfseries\color{rvAccent} RetailVision Edge AI\par}
+\vspace{0.4cm}
+{\Large\color{rvInk} Manual Técnico\par}
+\vspace{0.3cm}
+{\large\color{rvMuted} Sistema de Visión Computacional para \textit{Space Management}\\
+y Analítica de Tráfico en Retail\par}
+\vspace{2.2cm}
+
+{\large\color{rvInk}\textbf{Universidad Santo Tomás, Seccional Tunja}\par}
+\vspace{0.2cm}
+{\normalsize\color{rvMuted} Proyecto de Investigación / Semillero\par}
+\vspace{0.15cm}
+{\normalsize\color{rvMuted} Docente asesor: Sergio Arley Puerto Moreno\par}
+
+\vspace{2.2cm}
+{\normalsize\color{rvInk}\textbf{Equipo}\par}
+\vspace{0.3cm}
+\begin{tabular}{l}
+Silvana Sofía Siza Soriano \\
+Yeikov Jared Ramos Sánchez \\
+Sarita Toloza Buitrago \\
+Juan David Sandoval Bello \\
+Thomas Felipe Cepeda Mogollón \\
+Wendy Mariana Vargas Ramírez \\
+Andrés Felipe Galeano Téllez \\
+Sara Valentina Caicedo Duarte \\
+\end{tabular}
+
+\vfill
+{\large\color{rvMuted} 2026\par}
+\end{titlepage}
+
+\tableofcontents
+\clearpage
+
+% ============================================================================
+\chapter{Introducción}
+% ============================================================================
+
+\section{Propósito del sistema}
+
+\textbf{RetailVision Edge AI} es un sistema de visión computacional que transforma el video de
+cámaras de seguridad de una tienda en decisiones automatizadas de \textit{space management}.
+A partir del flujo de video, el sistema:
+
+\begin{itemize}
+  \item Detecta y rastrea personas frente a las góndolas (pose + tracking).
+  \item Identifica interacciones de \textbf{toma} (\textit{pick-up}) y \textbf{devolución}
+        (\textit{put-back}) de producto.
+  \item Mide tiempos de permanencia y tráfico por zona (heatmap).
+  \item Clasifica cada zona como \textit{caliente}, \textit{templada} o \textit{fría} según su
+        actividad observada.
+  \item Genera recomendaciones de planograma mediante un agente determinista (reglas sobre datos
+        observados, sin modelos de lenguaje ni llamadas a servicios externos).
+\end{itemize}
+
+Todo el procesamiento ocurre \textbf{100\,\% en el dispositivo local} (\textit{edge}), bajo un
+enfoque de \textbf{privacidad por diseño}: los rostros se anonimizan dentro del propio pipeline,
+antes de que cualquier fotograma se renderice o se persista, en cumplimiento de la Ley 1581 de
+2012 (Colombia) de protección de datos personales.
+
+\section{Contexto académico}
+
+El proyecto se desarrolla en el marco de un semillero de investigación de la \textbf{Universidad
+Santo Tomás, Seccional Tunja}, bajo la asesoría del docente \textbf{Sergio Arley Puerto Moreno}.
+Su primera versión se presentó como proyecto de la hackathon \textit{HackTech 5.0} bajo el nombre
+``Góndola Inteligente''; este manual documenta la versión consolidada del sistema, ya en proceso
+de inscripción al Registro de Software Académico de la institución.
+
+\section{Alcance de este documento}
+
+Este manual está dirigido a \textbf{desarrolladores, mantenedores y evaluadores técnicos} del
+proyecto. Describe la arquitectura de software, el stack tecnológico, el procedimiento de
+instalación y ejecución, el contrato de la API REST, el modelo de datos exportado, la lógica de
+dominio (máquina de estados de interacción), la estrategia de privacidad, y la suite de pruebas y
+calidad. Para una guía orientada al uso operativo del dashboard (sin detalles de implementación),
+véase el \textbf{Manual de Usuario} que acompaña este documento.
+
+% ============================================================================
+\chapter{Arquitectura del sistema}
+% ============================================================================
+
+\section{Visión general}
+
+El sistema sigue una \textbf{arquitectura por capas (Clean Architecture / Hexagonal ligera)}: el
+dominio contiene la lógica de negocio pura y no depende de ningún framework; los adaptadores de
+infraestructura aíslan YOLO, OpenCV y el transporte HTTP. La regla de dependencia se cumple de
+adentro hacia afuera: \texttt{domain} no importa nada de \texttt{infrastructure} ni
+\texttt{interfaces}.
+
+\begin{figure}[h]
+\centering
+\begin{lstlisting}[language=,basicstyle=\ttfamily\footnotesize,frame=single,backgroundcolor=\color{rvCodeBg},numbers=none,xleftmargin=0pt,framexleftmargin=6pt]
+video de tienda
+  -> YOLO-pose + ByteTrack + YOLO producto-en-mano   [infrastructure]
+  -> maquina de estados (pick-up / put-back)         [domain]
+  -> heatmap de trafico + analisis por zona          [domain]
+  -> recomendaciones de planograma (determinista)    [domain]
+  -> JSON de metricas (metricas_retail.json)         [use_cases]
+  -> backend FastAPI /api/*                          [interfaces]
+  -> dashboard React (5 vistas + editor de zonas)    [frontend]
+\end{lstlisting}
+\caption{Flujo de datos de extremo a extremo.}
+\end{figure}
+
+\section{Capas y responsabilidades}
+
+\begin{longtable}{>{\raggedright\footnotesize\arraybackslash}p{2.2cm} >{\raggedright\footnotesize\arraybackslash}p{6.0cm} >{\raggedright\footnotesize\arraybackslash}p{6.4cm}}
+\toprule
+\rowcolor{rvCodeBg}\textbf{Capa} & \textbf{Contiene} & \textbf{Depende de} \\
+\midrule
+\endhead
+\texttt{domain/} & Lógica de negocio pura: máquina de estados del cliente, geometría de
+polígonos, heatmap, agente de recomendación, puertos (\texttt{Protocol}) de detección y de
+repositorio. & Nada interno. \\
+\texttt{application/} & Persistencia de zonas, orquestación del ciclo de vida de un análisis
+(\texttt{AnalysisOrchestrator}), rutas del proyecto. & \texttt{domain/} \\
+\texttt{use\_cases/} & Orquestación del pipeline completo (frames, tracking, anonimización,
+exportación de métricas). & \texttt{domain/}, \texttt{infrastructure/}, \texttt{application/} \\
+\texttt{infrastructure/} & Adaptadores concretos: YOLO, ByteTrack, captura de video, blur de
+privacidad, ejecución del pipeline en subproceso, repositorio JSON de zonas. & Librerías
+externas únicamente. \\
+\texttt{interfaces/} & FastAPI (API HTTP), CLI (argparse), validación de precisión contra
+\textit{ground truth}. & Todas las anteriores. \\
+\bottomrule
+\end{longtable}
+
+\section{Estructura del repositorio}
+
+\begin{lstlisting}[language=,basicstyle=\ttfamily\footnotesize,frame=single,backgroundcolor=\color{rvCodeBg}]
+app/
+|-- config.py                    -> constantes de ajuste (umbrales, zonas, colores)
+|-- application/
+|   |-- analysis_orchestrator.py -> ciclo de vida de un analisis (estado en memoria)
+|   |-- zona_repository.py       -> puerto ZonaRepository
+|   |-- paths.py                 -> rutas resueltas a la raiz del repo
+|   `-- zonas.py                 -> persistencia/validacion/escalado de zonas
+|-- domain/
+|   |-- persona.py               -> maquina de estados de la persona y de la mano
+|   |-- analisis.py              -> heatmap de trafico + analizador de zonas
+|   |-- agente.py                -> recomendaciones de planograma (determinista)
+|   |-- constantes.py            -> vocabulario de dominio (acciones, colores, clasificacion)
+|   |-- detector_personas.py     -> puerto DetectorDePersonas (Protocol)
+|   |-- detector_objetos.py      -> puerto DetectorDeObjetos (Protocol)
+|   |-- geometria.py             -> helpers geometricos puros
+|   `-- poligonos.py             -> validacion de poligonos (ray-casting)
+|-- use_cases/
+|   |-- procesar_video.py        -> orquesta el pipeline de deteccion
+|   `-- exportar_metricas.py     -> vuelca las metricas a JSON
+|-- infrastructure/
+|   |-- vision.py                -> adaptadores YOLO + captura de video
+|   |-- anonimizacion.py         -> mosaico de rostros (privacidad)
+|   |-- dibujo.py                -> etiquetas sobre el fotograma
+|   |-- pipeline_runner.py       -> ejecuta el pipeline en subproceso aislado
+|   `-- zona_repository_json.py  -> adaptador JSON del puerto ZonaRepository
+`-- interfaces/
+    |-- api.py                   -> FastAPI (endpoints del dashboard)
+    |-- cli.py                   -> pipeline por linea de comandos
+    `-- validar_embudo.py        -> validacion P/R/F1 contra ground truth
+
+frontend/src/
+|-- domain/        -> logica pura (merge de zonas, tasas, agente de recomendacion)
+|-- application/    -> cliente HTTP hacia el backend
+`-- presentation/   -> componentes React (dashboard, editor de zonas, graficas)
+\end{lstlisting}
+
+\section{Puertos y adaptadores (Hexagonal)}
+
+Tres puntos de extensión concretos ilustran el patrón de puertos y adaptadores aplicado en el
+proyecto:
+
+\begin{itemize}
+  \item \textbf{\texttt{ZonaRepository}} (puerto, \texttt{application/zona\_repository.py}):
+    contrato de persistencia de zonas (\texttt{obtener}, \texttt{guardar}, \texttt{restablecer},
+    \texttt{fuente}). Su adaptador, \texttt{JsonZonaRepository}
+    (\texttt{infrastructure/zona\_repository\_json.py}), persiste en dos archivos JSON: uno de
+    fábrica de solo lectura y uno de \textit{runtime} editable desde la web.
+  \item \textbf{\texttt{AnalysisOrchestrator}} (\texttt{application/analysis\_orchestrator.py}):
+    encapsula el estado del análisis en curso (antes variables globales del módulo de la API),
+    inyectado en los \textit{endpoints} vía \texttt{Depends()} de FastAPI. Recibe como
+    dependencia un \texttt{ejecutor} (puerto) que desacopla la orquestación de \textbf{cómo} se
+    corre el pipeline realmente.
+  \item \textbf{\texttt{DetectorDePersonas} / \texttt{DetectorDeObjetos}} (\texttt{Protocol} en
+    \texttt{domain/}): contratos de tipado estructural que \texttt{DetectorPoseYObjetos}
+    (\texttt{infrastructure/vision.py}) satisface sin herencia explícita. Permiten a los casos de
+    uso declarar qué necesitan sin acoplarse a la clase concreta de YOLO.
+\end{itemize}
+
+\rvnota{Esta separación permite sustituir cualquier adaptador (por ejemplo, un repositorio de
+zonas en base de datos en vez de JSON, o un detector distinto a YOLO) sin tocar el dominio ni los
+casos de uso.}
+
+% ============================================================================
+\chapter{Stack tecnológico}
+% ============================================================================
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{3cm} >{\raggedright\arraybackslash}p{11.6cm}}
+\toprule
+\rowcolor{rvCodeBg}\textbf{Capa} & \textbf{Tecnologías} \\
+\midrule
+\endhead
+Visión & \texttt{ultralytics} (YOLO-pose + detector de producto-en-mano \textit{fine-tuneado}),
+OpenCV, NumPy, ByteTrack (tracking multi-objeto). \\
+Backend & Python 3.12, FastAPI, uvicorn, \texttt{Depends()} para inyección de dependencias. \\
+Frontend & React 19, Vite 8, ECharts (gráficas interactivas), three.js (plano 3D). \\
+Calidad & \texttt{unittest} / \texttt{pytest}, \texttt{scripts\_qa} (privacidad, métricas,
+rendimiento), ESLint, \texttt{node:test}. \\
+Empaquetado & \texttt{requirements.txt} (Python), \texttt{npm} (frontend), \texttt{arrancar.ps1}
+(orquestación local en Windows). \\
+\bottomrule
+\end{longtable}
+
+% ============================================================================
+\chapter{Instalación y configuración}
+% ============================================================================
+
+\section{Requisitos previos}
+
+\begin{itemize}
+  \item Python 3.12 (recomendado; probado también en 3.13).
+  \item Node.js 18 o superior y \texttt{npm}.
+  \item (Opcional) GPU NVIDIA para aceleración CUDA --- probado en RTX 2060.
+\end{itemize}
+
+\section{Backend}
+
+\begin{lstlisting}[language=bash]
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+pip install -r requirements.txt
+\end{lstlisting}
+
+Los modelos YOLO (\texttt{.pt}) se descargan automáticamente con \texttt{ultralytics} la primera
+vez que se ejecutan (\texttt{models/yolo11n-pose.pt}); el detector de producto-en-mano
+\textit{fine-tuneado} se entrena sobre el dataset de Roboflow \texttt{theft-full-2500}.
+
+Aceleración por GPU (opcional, NVIDIA con soporte CUDA 12.6):
+
+\begin{lstlisting}[language=bash]
+pip install "torch==2.13.0+cu126" "torchvision==0.28.0+cu126" \
+  --index-url https://download.pytorch.org/whl/cu126
+pip uninstall -y opencv-python-headless
+\end{lstlisting}
+
+\rvnota{Sin GPU, el sistema funciona en CPU sin cambios de código; solo cambia el tiempo de
+procesamiento (ver \S\ref{sec:rendimiento}).}
+
+\section{Frontend}
+
+\begin{lstlisting}[language=bash]
+cd frontend
+npm install
+\end{lstlisting}
+
+\section{Variables de entorno relevantes}
+
+\begin{longtable}{>{\ttfamily\raggedright\footnotesize\arraybackslash}p{5.0cm} >{\raggedright\arraybackslash}p{9.4cm}}
+\toprule
+\rowcolor{rvCodeBg}\textbf{Variable} & \textbf{Efecto} \\
+\midrule
+\endhead
+GONDOLA\_CORS\_ORIGINS & Orígenes permitidos por CORS (por defecto, los puertos de desarrollo de
+Vite). \\
+GONDOLA\_MAX\_VIDEO\_MB & Límite de tamaño por video subido (por defecto, 500\,MB). \\
+\bottomrule
+\end{longtable}
+
+% ============================================================================
+\chapter{Ejecución}
+% ============================================================================
+
+\section{Todo en uno (Windows)}
+
+\begin{lstlisting}[language=bash]
+powershell -ExecutionPolicy Bypass -File .\arrancar.ps1
+# Dashboard  -> http://localhost:5173
+# Backend API -> http://localhost:8000
+\end{lstlisting}
+
+\section{Por separado}
+
+\begin{lstlisting}[language=bash]
+python -m uvicorn backend.main:app --reload --port 8000   # backend
+cd frontend && npm run dev                                 # frontend
+\end{lstlisting}
+
+\section{Pipeline por línea de comandos}
+
+\begin{lstlisting}[language=bash]
+python -m app.interfaces.cli                  # con ventana OpenCV en vivo
+python -m app.interfaces.cli --no-ventana     # headless (solo metricas)
+python -m app.interfaces.cli --no-ventana \
+  --video video/mi_video.mp4 \
+  --guardar-frames outputs/vision_frames \
+  --estado-json outputs/analysis_status.json \
+  --run-id demo-001
+\end{lstlisting}
+
+\section{Flujo de un análisis (desde el dashboard)}
+
+\begin{enumerate}
+  \item \textbf{Subir un video} (\texttt{POST /api/video}) --- el backend extrae un fotograma de
+    \textbf{vista previa con rostros ya anonimizados}.
+  \item \textbf{Calibrar las zonas} sobre esa vista previa (arrastrar los vértices de cada
+    góndola en el editor web).
+  \item \textbf{Ejecutar el análisis} (\texttt{POST /api/analizar}) --- el pipeline YOLO corre en
+    un subproceso aislado, en segundo plano.
+  \item El frontend consulta \texttt{GET /api/estado} para el progreso y \texttt{GET /api/datos}
+    para las métricas resultantes.
+  \item Si el usuario \textbf{vuelve a guardar las zonas}, el análisis se \textbf{re-ejecuta
+    automáticamente} sobre el último video procesado.
+\end{enumerate}
+
+% ============================================================================
+\chapter{API REST}
+% ============================================================================
+
+Todos los \textit{endpoints} están prefijados por \texttt{/api} y son servidos por FastAPI
+(\texttt{app/interfaces/api.py}). Las respuestas son JSON salvo donde se indique lo contrario.
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{1.3cm} >{\ttfamily\raggedright\footnotesize\arraybackslash}p{3.9cm} >{\raggedright\arraybackslash}p{8.6cm}}
+\toprule
+\rowcolor{rvCodeBg}\textbf{Método} & \textbf{Ruta} & \textbf{Descripción} \\
+\midrule
+\endhead
+GET & /api/estado & Estado del análisis (\texttt{inactivo}, \texttt{iniciando},
+\texttt{procesando}, \texttt{completado}, \texttt{error}) y progreso. \\
+GET & /api/datos & Métricas reales del pipeline (zonas, embudo, heatmap, recomendaciones). 404 si
+aún no hay datos. \\
+POST & /api/analizar & Ejecuta el análisis YOLO en segundo plano (video pendiente, último
+analizado, o el especificado por \texttt{ruta\_video}). \\
+POST & /api/reiniciar & Reinicia las métricas (borra resultados y estado previos; conserva las
+zonas calibradas). \\
+POST & /api/video & Sube un video y prepara la vista previa anonimizada para calibrar (no analiza
+aún). \\
+GET & /api/zonas & Zonas vigentes (polígono + agarro) en el \textit{frame} de referencia
+1280x720, y su origen (\texttt{runtime} o \texttt{default}). \\
+PUT & /api/zonas & Persiste las zonas editadas; re-ejecuta el análisis si corresponde. \\
+POST & /api/zonas/restablecer & Vuelve a las zonas de fábrica. \\
+GET & /api/vision-frames & Índice de los fotogramas anotados del visor ``visión de las
+góndolas''. \\
+GET & / & Sirve el frontend estático (\texttt{dist/}). \\
+\bottomrule
+\end{longtable}
+
+\section{Ejemplo: cuerpo de \texttt{GET /api/datos} (resumido)}
+
+\begin{lstlisting}[language=,basicstyle=\ttfamily\footnotesize]
+{
+  "generado_en": "2026-10-24T15:02:11",
+  "video": {"fps": 24.4, "ancho": 1280, "alto": 720},
+  "total_personas_registradas": 12,
+  "embudo_interaccion": {
+    "total_pick_ups": 9, "total_put_backs": 2, "tasa_rechazo_general": 0.22
+  },
+  "analisis_zonas": [
+    {"id": "Estante_Izquierdo", "visitas": 14, "pick_ups": 5,
+     "put_backs": 1, "clasificacion": "caliente", "dwell_promedio_seg": 6.4}
+  ],
+  "heatmap_global": [[0, 12, 48, "..."]],
+  "recomendaciones": {
+    "motor": "agente determinista (reglas sobre datos observados por YOLO)",
+    "por_zona": {"Estante_Izquierdo": "..."},
+    "planograma": {"accion": "reubicar", "origen": "...", "destino": "..."}
+  },
+  "detalle_por_persona": [
+    {"id_persona": 3, "permanencia_estante_seg": 8.2, "producto_adquirido": true,
+     "eventos": [{"tipo": "Producto Adquirido", "frame": 142, "zona": "Estante_Central"}],
+     "trayectoria": [{"segundo": 4.1, "x": 640, "y": 300}]}
+  ]
+}
+\end{lstlisting}
+
+% ============================================================================
+\chapter{Lógica de dominio}
+% ============================================================================
+
+\section{Máquina de estados de la persona}
+
+Cada persona rastreada transita por los estados definidos en
+\texttt{domain/constantes.py} y gestionados por \texttt{domain/persona.py}:
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\rowcolor{rvCodeBg}\textbf{Estado} & \textbf{Significado} \\
+\midrule
+En Tránsito & La persona circula, fuera de cualquier zona de interés. \\
+Alcanzar Estante & Se acerca a una zona y aún no permanece el tiempo suficiente. \\
+Inspeccionar Producto & Permanece quieta frente al estante (umbral de tiempo superado). \\
+Mano en Estante & La muñeca entra al área de \textit{agarro} de la zona. \\
+Producto Adquirido & Se confirma una toma (\textit{pick-up}). \\
+Devolver el producto & Se confirma una devolución (\textit{put-back}) tras una toma previa. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Detección de pick-up / put-back}
+
+La función \texttt{detectar\_interaccion\_manos} (\texttt{domain/persona.py}) implementa una
+máquina de estados por \textbf{flancos}, no por umbrales instantáneos, para tolerar el
+parpadeo del detector:
+
+\begin{itemize}
+  \item \textbf{Toma (pick-up):} se confirma cuando (a) la muñeca permanece
+    \texttt{MANO\_EN\_ZONA\_PARA\_RETIRAR} \textit{frames} dentro del área de agarro \textbf{y}
+    (b) el detector de objetos observa producto en posesión durante
+    \texttt{OBJETO\_OBSERVACIONES\_CONFIRMAR} observaciones recientes. Existe un
+    \textbf{respaldo por gesto} (\texttt{MANO\_EN\_ZONA\_CONFIRMA\_GESTO}) para productos que el
+    modelo \textit{fine-tuneado} no reconoce.
+  \item \textbf{Devolución (put-back):} exige una toma previa y, o bien (a) la muñeca
+    \textbf{reingresa} al área de agarro (nueva visita) con el producto visto al entrar, o bien
+    (b) el producto deja de observarse durante \texttt{OBJETO\_OBSERVACIONES\_REARMAR}
+    observaciones mientras la mano sigue en el estante.
+  \item \textbf{Deduplicación:} eventos del mismo tipo en la misma zona dentro de
+    \texttt{VENTANA\_DEDUPE\_PICKUP} \textit{frames} se consideran el mismo evento real (el
+    tracker puede fragmentar un ID en varios).
+\end{itemize}
+
+La exactitud de esta máquina de estados se mide con precisión/recall/F1 contra un
+\textit{ground truth} anotado manualmente (\texttt{app/interfaces/validar\_embudo.py}).
+
+\section{Clasificación de zonas y heatmap}
+
+\texttt{domain/analisis.py} acumula, por zona, la \textbf{presencia ponderada por cercanía} al
+centro de la zona y clasifica caliente / templada / fría por \textit{percentil} normalizado del
+calor acumulado entre zonas. El heatmap de tráfico (\texttt{HeatmapTrafico}) usa un
+\textit{splat} gaussiano local (no un recorrido completo del fotograma) por eficiencia, y
+normaliza por frames con presencia (no por suma acumulada) para no saturar en videos largos.
+
+\section{Agente de recomendación}
+
+\texttt{domain/agente.py} es un motor \textbf{100\,\% determinista}: reglas sobre los datos
+observados (visitas, tomas, tasa de rechazo, \textit{dwell time}). No usa modelos de lenguaje ni
+llamadas externas. Genera texto accionable por zona y una propuesta de redistribución de
+\textit{facing} (\% de espacio sugerido) cruzando la zona más caliente con la más fría.
+
+% ============================================================================
+\chapter{Privacidad y cumplimiento}
+% ============================================================================
+
+\section{Principio: privacidad por diseño}
+
+El sistema cumple la \textbf{Ley 1581 de 2012} (Colombia, protección de datos personales)
+mediante las siguientes garantías técnicas, verificadas por \texttt{scripts\_qa/qa\_privacidad.py}:
+
+\begin{itemize}
+  \item \textbf{Sin reconocimiento facial:} no se extraen \textit{embeddings} biométricos de
+    ningún rostro.
+  \item \textbf{Anonimización antes de cualquier render:} \texttt{infrastructure/anonimizacion.py}
+    difumina (\textit{Gaussian blur}, kernel 61x61) la región de la cabeza, localizada con los
+    \textit{keypoints} de YOLO-pose, \textbf{antes} de que el fotograma se muestre, se guarde o
+    se transmita.
+  \item \textbf{IDs efímeros:} los identificadores de tracking no re-identifican personas entre
+    sesiones ni se cruzan con ninguna otra fuente de datos.
+  \item \textbf{Procesamiento 100\,\% local (\textit{edge}):} ningún fotograma de video se
+    envía a servicios en la nube de terceros para su análisis.
+  \item \textbf{Salidas limpias:} el JSON de métricas y los fotogramas exportados no contienen
+    información biométrica, solo coordenadas, tiempos y eventos agregados.
+\end{itemize}
+
+% ============================================================================
+\chapter{Pruebas y calidad}
+\label{sec:rendimiento}
+% ============================================================================
+
+\section{Suite de pruebas}
+
+\begin{lstlisting}[language=bash]
+python -m pytest tests/ -q                  # 51 tests de backend
+python scripts_qa/qa_privacidad.py          # auditoria de privacidad (0 hallazgos)
+python scripts_qa/qa_metricas.py            # invariantes de metricas
+python scripts_qa/qa_rendimiento.py         # benchmark FPS / margen de tiempo real
+cd frontend && npm test && npm run build    # tests y build del frontend
+\end{lstlisting}
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{5.2cm} >{\raggedright\arraybackslash}p{8.4cm}}
+\toprule
+\rowcolor{rvCodeBg}\textbf{Módulo} & \textbf{Cobertura} \\
+\midrule
+\endhead
+\texttt{tests/} (backend) & 51 pruebas: dominio (persona, polígonos, zonas), orquestador de
+análisis (aislado, sin FastAPI ni subproceso real mediante ejecutores de prueba), API
+(\texttt{TestClient}). \\
+\texttt{frontend/tests/} & Pruebas de lógica de dominio del frontend (tasas, Sankey,
+\textit{merge} de zonas) con \texttt{node:test}. \\
+\texttt{qa\_privacidad.py} & Verifica ausencia de datos biométricos en las salidas. \\
+\texttt{qa\_metricas.py} & Invariantes del embudo, rango del heatmap (0--100), coherencia de
+recomendaciones. \\
+\texttt{qa\_rendimiento.py} & Mide FPS de procesamiento y margen frente a tiempo real. \\
+\bottomrule
+\end{longtable}
+
+\section{Resultados de referencia}
+
+Medidos sobre GPU NVIDIA RTX 2060, video 720p: \textbf{\textasciitilde 24 FPS} de procesamiento,
+equivalentes a un margen de \textbf{\textasciitilde 4$\times$} respecto al tiempo real del video
+(es decir, un video de 1 minuto se procesa en \textasciitilde 15 segundos).
+
+% ============================================================================
+\chapter{Solución de problemas (técnico)}
+% ============================================================================
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{5.2cm} >{\raggedright\arraybackslash}p{8.4cm}}
+\toprule
+\rowcolor{rvCodeBg}\textbf{Síntoma} & \textbf{Causa probable / solución} \\
+\midrule
+\endhead
+\texttt{POST /api/analizar} responde 409 (\texttt{en\_curso}) & Ya hay un análisis en curso en el
+mismo proceso; esperar a que termine o consultar \texttt{GET /api/estado}. \\
+El video no genera vista previa & \texttt{cv2.VideoCapture} no pudo abrir el archivo (códec no
+soportado); revisar \texttt{outputs/analysis.log}. \\
+El pipeline termina con \texttt{estado=error} & Revisar \texttt{outputs/analysis.log}
+(\texttt{SubprocessPipelineRunner} escribe ahí la salida completa del subproceso). \\
+Las zonas no se reflejan en el análisis & Confirmar que \texttt{config/zonas\_runtime.json}
+existe y es válido; \texttt{GET /api/zonas} expone el campo \texttt{fuente}. \\
+Rendimiento bajo sin GPU & Esperado: el sistema funciona en CPU, pero a menor FPS. Ajustar
+\texttt{PROCESAR\_CADA\_N} en \texttt{app/config.py} para procesar menos \textit{frames}. \\
+\bottomrule
+\end{longtable}
+
+% ============================================================================
+\chapter{Créditos y contacto}
+% ============================================================================
+
+\textbf{Docente asesor:} Sergio Arley Puerto Moreno
+
+\textbf{Equipo de desarrollo:}
+
+\begin{itemize}
+  \item Silvana Sofía Siza Soriano
+  \item Yeikov Jared Ramos Sánchez
+  \item Sarita Toloza Buitrago
+  \item Juan David Sandoval Bello
+  \item Thomas Felipe Cepeda Mogollón
+  \item Wendy Mariana Vargas Ramírez
+  \item Andrés Felipe Galeano Téllez
+  \item Sara Valentina Caicedo Duarte
+\end{itemize}
+
+\textbf{Institución:} Universidad Santo Tomás, Seccional Tunja --- Proyecto de Investigación /
+Semillero RetailVision Edge AI.
+
+\end{document}

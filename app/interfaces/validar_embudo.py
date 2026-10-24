@@ -19,32 +19,32 @@ def eventos_detectados(metricas):
     personas = metricas.get("detalle_por_persona") or []
     if isinstance(personas, dict):
         personas = personas.values()
-    evs = []
+    eventos_normalizados = []
     for persona in personas:
         tid = persona.get("id_persona")
-        for e in persona.get("eventos", []):
-            tipo = e.get("tipo", "")
+        for evento in persona.get("eventos", []):
+            tipo = evento.get("tipo", "")
             if tipo == ACCION_ADQUIRIDO:
                 tipo_norm = "pick_up"
             elif tipo == ACCION_DEVOLVIENDO:
                 tipo_norm = "put_back"
             else:
                 continue
-            evs.append({
-                "frame": int(e.get("frame", 0)),
+            eventos_normalizados.append({
+                "frame": int(evento.get("frame", 0)),
                 "tipo": tipo_norm,
-                "zona": e.get("zona") or None,
+                "zona": evento.get("zona") or None,
                 "persona": tid,
             })
-    return evs
+    return eventos_normalizados
 
 
-def coinciden(det, gt, tol):
-    mismo_tipo = det["tipo"] == gt["tipo"]
-    mismo_frame = abs(det["frame"] - gt["frame"]) <= tol
-    zona = gt.get("zona")
-    mismo_zona = (not zona) or (det.get("zona") == zona)
-    return mismo_tipo and mismo_frame and mismo_zona
+def coinciden(detectado, gt, tol):
+    mismo_tipo = detectado["tipo"] == gt["tipo"]
+    mismo_frame = abs(detectado["frame"] - gt["frame"]) <= tol
+    zona_gt = gt.get("zona")
+    misma_zona = (not zona_gt) or (detectado.get("zona") == zona_gt)
+    return mismo_tipo and mismo_frame and misma_zona
 
 
 def validar_gt(detectados, gt_eventos, tol):
@@ -55,57 +55,56 @@ def validar_gt(detectados, gt_eventos, tol):
     Devuelve TP (pares gt-det), FP (detecciones sin casar) y FN (eventos GT
     sin casar), con su lista para poder desglosar por zona.
     """
-    det_pend = sorted(detectados, key=lambda d: d["frame"])
-    pend = list(det_pend)
-    tp = []
-    faltas = []
-    for gt_ev in sorted(gt_eventos, key=lambda g: g["frame"]):
-        mejor = None
-        mejor_d = None
-        for i, d in enumerate(pend):
-            if not coinciden(d, gt_ev, tol):
+    pendientes = sorted(detectados, key=lambda d: d["frame"])
+    verdaderos_positivos = []
+    sin_match = []
+    for evento_gt in sorted(gt_eventos, key=lambda g: g["frame"]):
+        mejor_distancia = None
+        mejor_indice = None
+        for indice, candidato in enumerate(pendientes):
+            if not coinciden(candidato, evento_gt, tol):
                 continue
-            dist = abs(d["frame"] - gt_ev["frame"])
-            if mejor is None or dist < mejor:
-                mejor, mejor_d = dist, i
-        if mejor is not None:
-            tp.append((gt_ev, pend.pop(mejor_d)))
+            distancia = abs(candidato["frame"] - evento_gt["frame"])
+            if mejor_distancia is None or distancia < mejor_distancia:
+                mejor_distancia, mejor_indice = distancia, indice
+        if mejor_distancia is not None:
+            verdaderos_positivos.append((evento_gt, pendientes.pop(mejor_indice)))
         else:
-            faltas.append(gt_ev)
-    fp = pend
-    return tp, fp, len(faltas), faltas
+            sin_match.append(evento_gt)
+    falsos_positivos = pendientes
+    return verdaderos_positivos, falsos_positivos, len(sin_match), sin_match
 
 
 def desglose_por_zona(tp, fp, faltas):
     """Resume TP/FP/FN por zona (la zona GT si existe; si no, la de la deteccion)."""
-    zon = {}
-    for gt, det in tp:
-        z = gt.get("zona") or det.get("zona") or "(sin zona)"
-        zc = zon.setdefault(z, {"tp": 0, "fp": 0, "fn": 0})
-        zc["tp"] += 1
-    for d in fp:
-        z = d.get("zona") or "(sin zona)"
-        zc = zon.setdefault(z, {"tp": 0, "fp": 0, "fn": 0})
-        zc["fp"] += 1
-    for g in faltas:
-        z = g.get("zona") or "(sin zona)"
-        zc = zon.setdefault(z, {"tp": 0, "fp": 0, "fn": 0})
-        zc["fn"] += 1
-    return zon
+    por_zona = {}
+    for evento_gt, detectado in tp:
+        zona = evento_gt.get("zona") or detectado.get("zona") or "(sin zona)"
+        contador = por_zona.setdefault(zona, {"tp": 0, "fp": 0, "fn": 0})
+        contador["tp"] += 1
+    for detectado in fp:
+        zona = detectado.get("zona") or "(sin zona)"
+        contador = por_zona.setdefault(zona, {"tp": 0, "fp": 0, "fn": 0})
+        contador["fp"] += 1
+    for evento_gt in faltas:
+        zona = evento_gt.get("zona") or "(sin zona)"
+        contador = por_zona.setdefault(zona, {"tp": 0, "fp": 0, "fn": 0})
+        contador["fn"] += 1
+    return por_zona
 
 
 def metricas(tp, fp, fn):
-    def _n(x):
-        return len(x) if isinstance(x, (list, tuple)) else int(x)
-    tp_n, fp_n, fn_n = _n(tp), _n(fp), _n(fn)
-    precision = tp_n / (tp_n + fp_n) if (tp_n or fp_n) else 0.0
-    recall = tp_n / (tp_n + fn_n) if (tp_n or fn_n) else 0.0
+    def _cantidad(valor):
+        return len(valor) if isinstance(valor, (list, tuple)) else int(valor)
+    n_tp, n_fp, n_fn = _cantidad(tp), _cantidad(fp), _cantidad(fn)
+    precision = n_tp / (n_tp + n_fp) if (n_tp or n_fp) else 0.0
+    recall = n_tp / (n_tp + n_fn) if (n_tp or n_fn) else 0.0
     f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
     return precision, recall, f1
 
 
 def reportar(tp, fp, fn, tol, faltas=None):
-    p, r, f1 = metricas(tp, fp, fn)
+    precision, recall, f1 = metricas(tp, fp, fn)
     print("=" * 62)
     print("VALIDACION EMBUDO vs GROUND TRUTH"
           f" (tolerancia +/-{tol} frames)")
@@ -113,8 +112,8 @@ def reportar(tp, fp, fn, tol, faltas=None):
     print(f"  Verdaderos positivos (acertados) : {len(tp)}")
     print(f"  Falsos positivos (detectados de mas): {len(fp)}")
     print(f"  Falsos negativos (no detectados)  : {fn}")
-    print(f"  Precision  : {p:.2%}")
-    print(f"  Recall     : {r:.2%}")
+    print(f"  Precision  : {precision:.2%}")
+    print(f"  Recall     : {recall:.2%}")
     print(f"  F1         : {f1:.2f}")
 
     por_zona = desglose_por_zona(tp, fp, faltas or [])
@@ -122,21 +121,21 @@ def reportar(tp, fp, fn, tol, faltas=None):
         print("-" * 62)
         print("  Desglose por zona:")
         print(f"  {'zona':<20}{'TP':>4}{'FP':>4}{'FN':>4}{'P':>8}{'R':>8}{'F1':>7}")
-        for z in sorted(por_zona):
-            c = por_zona[z]
-            zp, zr, zf1 = metricas(c["tp"], c["fp"], c["fn"])
-            print(f"  {z:<20}{c['tp']:>4}{c['fp']:>4}{c['fn']:>4}"
+        for zona in sorted(por_zona):
+            contador = por_zona[zona]
+            zp, zr, zf1 = metricas(contador["tp"], contador["fp"], contador["fn"])
+            print(f"  {zona:<20}{contador['tp']:>4}{contador['fp']:>4}{contador['fn']:>4}"
                   f"{zp:>7.0%}{zr:>8.0%}{zf1:>7.2f}")
 
     print("-" * 62)
-    for gt, det in tp:
-        d = abs(det["frame"] - gt["frame"])
-        print(f"   OK  {gt['tipo']:<9} gt={gt['frame']:>4} det="
-              f"{det['frame']:>4} (dist {d}) zona={gt.get('zona') or det.get('zona')}")
-    for d in fp:
-        print(f"   FP  {d['tipo']:<9} det={d['frame']:>4} zona={d.get('zona')} "
-              f"persona={d.get('persona')}  << sin match en GT")
-    return p, r, f1
+    for evento_gt, detectado in tp:
+        distancia = abs(detectado["frame"] - evento_gt["frame"])
+        print(f"   OK  {evento_gt['tipo']:<9} gt={evento_gt['frame']:>4} det="
+              f"{detectado['frame']:>4} (dist {distancia}) zona={evento_gt.get('zona') or detectado.get('zona')}")
+    for detectado in fp:
+        print(f"   FP  {detectado['tipo']:<9} det={detectado['frame']:>4} zona={detectado.get('zona')} "
+              f"persona={detectado.get('persona')}  << sin match en GT")
+    return precision, recall, f1
 
 
 def barrido_tol(detectados, gt_eventos, tols):
@@ -147,11 +146,11 @@ def barrido_tol(detectados, gt_eventos, tols):
     print(f"  {'tol':<6}{'TP':>5}{'FP':>5}{'FN':>5}{'P':>8}{'R':>8}{'F1':>7}")
     mejor = None
     for tol in tols:
-        tp, fp, fn_n, _ = validar_gt(detectados, gt_eventos, tol)
-        p, r, f1 = metricas(tp, fp, fn_n)
-        print(f"  {tol:<6}{len(tp):>5}{len(fp):>5}{fn_n:>5}"
-              f"{p:>7.0%}{r:>8.0%}{f1:>7.2f}")
-        if (tp or fp or fn_n) and (mejor is None or f1 > mejor[1]):
+        tp, fp, n_fn, _ = validar_gt(detectados, gt_eventos, tol)
+        precision, recall, f1 = metricas(tp, fp, n_fn)
+        print(f"  {tol:<6}{len(tp):>5}{len(fp):>5}{n_fn:>5}"
+              f"{precision:>7.0%}{recall:>8.0%}{f1:>7.2f}")
+        if (tp or fp or n_fn) and (mejor is None or f1 > mejor[1]):
             mejor = (tol, f1)
     if mejor:
         print(f"  -> Mejor F1 {mejor[1]:.2f} con tolerancia +/-{mejor[0]} frames.")
@@ -163,27 +162,27 @@ def chequeo_coherencia(metricas):
     print("=" * 62)
     print("CHEQUEO DE COHERENCIA")
     print("=" * 62)
-    ok = True
+    todo_ok = True
 
     analisis = metricas.get("analisis_zonas") or []
 
-    for z in analisis:
-        zid = z.get("id", "?")
-        tasa = z.get("tasa_rechazo", 0) or 0
-        pick = z.get("pick_ups", 0) or 0
-        put = z.get("put_backs", 0) or 0
-        visitas = z.get("visitas", 0) or 0
+    for zona in analisis:
+        zid = zona.get("id", "?")
+        tasa = zona.get("tasa_rechazo", 0) or 0
+        pick = zona.get("pick_ups", 0) or 0
+        put = zona.get("put_backs", 0) or 0
+        visitas = zona.get("visitas", 0) or 0
 
         if tasa > 1.01:
             print(f"  [FALLA] {zid}: tasa de rechazo {tasa:.2f} > 100%"
                   f" ({put} devoluciones / {pick} tomas).")
-            ok = False
+            todo_ok = False
         elif put > pick:
             print(f"  [AVISO] {zid}: {put} put-backs > {pick} pick-ups "
                   f"(devolver sin tomar antes).")
         if pick > 0 and visitas == 0:
             print(f"  [FALLA] {zid}: {pick} pick-ups pero 0 visitas (imposible).")
-            ok = False
+            todo_ok = False
 
     embudo = metricas.get("embudo_interaccion") or {}
     tot_pick = embudo.get("total_pick_ups", 0) or 0
@@ -197,11 +196,11 @@ def chequeo_coherencia(metricas):
 
     if not analisis:
         print("  [FALLA] analisis_zonas vacio.")
-        ok = False
+        todo_ok = False
 
-    print("  Estado: " + ("OK (sin incoherencias detectadas)" if ok
+    print("  Estado: " + ("OK (sin incoherencias detectadas)" if todo_ok
                           else "SE DETECTARON INCOHERENCIAS"))
-    return ok
+    return todo_ok
 
 
 def validar_metricas(metricas, ruta_gt=None, tol=FRAME_TOL_DEFECTO,
@@ -232,13 +231,13 @@ def validar_metricas(metricas, ruta_gt=None, tol=FRAME_TOL_DEFECTO,
         ruta_gt = Path(ruta_gt)
         if not ruta_gt.exists():
             sys.exit(f"Ground truth no encontrado: {ruta_gt}")
-        with open(ruta_gt, encoding="utf-8") as f:
-            gt_data = json.load(f)
+        with open(ruta_gt, encoding="utf-8") as archivo:
+            gt_data = json.load(archivo)
 
         # Aviso de zonas obsoletas en el GT (ids que ya no existen en config).
-        ids_actuales = {z.get("id") for z in (metricas.get("analisis_zonas") or [])}
-        for g in gt_data.get("eventos", []):
-            zona = (g or {}).get("zona")
+        ids_actuales = {zona.get("id") for zona in (metricas.get("analisis_zonas") or [])}
+        for evento_gt in gt_data.get("eventos", []):
+            zona = (evento_gt or {}).get("zona")
             if zona and ids_actuales and zona not in ids_actuales:
                 print(f"  [AVISO] El GT usa la zona '{zona}', ausente en el "
                       f"JSON de metricas (ids actuales: {sorted(ids_actuales)}).")
@@ -246,12 +245,12 @@ def validar_metricas(metricas, ruta_gt=None, tol=FRAME_TOL_DEFECTO,
         detectados = eventos_detectados(metricas)
         gt_eventos = gt_data.get("eventos", [])
         tp, fp, fn, faltas = validar_gt(detectados, gt_eventos, tol)
-        p, r, f1 = reportar(tp, fp, fn, tol, faltas=faltas)
+        precision, recall, f1 = reportar(tp, fp, fn, tol, faltas=faltas)
         if hacer_barrido:
             barrido_tol(detectados, gt_eventos,
                         list(range(2, 32, 3)))
         resultado.update(tp=len(tp), fp=len(fp), fn=fn,
-                         precision=p, recall=r, f1=f1,
+                         precision=precision, recall=recall, f1=f1,
                          por_zona=desglose_por_zona(tp, fp, faltas))
         if umbral_f1 is not None:
             resultado["f1_ok"] = f1 >= umbral_f1
@@ -285,17 +284,17 @@ def main():
                          "(diagnostico del match).")
     args = ap.parse_args()
 
-    ruta_m = Path(args.metricas)
-    if not ruta_m.exists():
-        sys.exit(f"Metricas no encontradas: {ruta_m}")
-    with open(ruta_m, encoding="utf-8") as f:
-        metricas = json.load(f)
+    ruta_metricas = Path(args.metricas)
+    if not ruta_metricas.exists():
+        sys.exit(f"Metricas no encontradas: {ruta_metricas}")
+    with open(ruta_metricas, encoding="utf-8") as archivo:
+        metricas_cargadas = json.load(archivo)
 
-    res = validar_metricas(metricas, ruta_gt=args.gt, tol=args.tol,
+    resultado = validar_metricas(metricas_cargadas, ruta_gt=args.gt, tol=args.tol,
                            umbral_f1=args.umbral_f1, sanity=not args.no_sanity,
                            hacer_barrido=args.barrido_tol)
 
-    if args.umbral_f1 is not None and not (res["f1_ok"] and res["sanity_ok"]):
+    if args.umbral_f1 is not None and not (resultado["f1_ok"] and resultado["sanity_ok"]):
         sys.exit("VALIDACION NO SUPERADA: F1 por debajo del umbral o "
                  "incoherencias de sanity.")
 

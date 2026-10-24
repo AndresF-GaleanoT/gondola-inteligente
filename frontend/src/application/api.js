@@ -1,5 +1,5 @@
 // APPLICATION / api
-// Comunicación del frontend con el backend de Góndola Inteligente.
+// Comunicación del frontend con el backend de RetailVision Edge AI.
 
 import { mergeZones } from '../domain/zones';
 import { buildAnalytics } from '../domain/analytics';

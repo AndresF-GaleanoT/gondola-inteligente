@@ -1,8 +1,8 @@
 # APPLICATION / zonas - persistencia y validacion de zonas de calibracion.
 # Funciones puras (rutas y dimensiones explicitas) para poder testearlas sin
-# tocar la configuracion real del proyecto.
+# tocar la configuracion real del proyecto. No conocen el concepto de
+# "repositorio": eso lo agrega el adaptador en infrastructure/zona_repository_json.py.
 
-import ast
 import json
 from pathlib import Path
 
@@ -15,96 +15,53 @@ def validar_zonas(zonas, ancho, alto):
     vertices no enteros, autointerseccion o area nula)."""
     if not isinstance(zonas, list) or not zonas:
         raise ValueError("Se requiere una lista no vacía de zonas.")
-    ids = set()
-    for z in zonas:
-        if not isinstance(z, dict) or not z.get("id"):
+    ids_vistos = set()
+    for zona in zonas:
+        if not isinstance(zona, dict) or not zona.get("id"):
             raise ValueError("Cada zona necesita un id.")
-        zid = z["id"]
+        zid = zona["id"]
         if not isinstance(zid, str) or not zid.strip():
             raise ValueError("Cada zona necesita un id de texto.")
-        if zid in ids:
+        if zid in ids_vistos:
             raise ValueError("Hay zonas con el id repetido: %s" % zid)
-        ids.add(zid)
+        ids_vistos.add(zid)
         for clave in ("poligono", "agarro"):
-            pts = z.get(clave)
-            if not isinstance(pts, list) or len(pts) != 4:
+            vertices = zona.get(clave)
+            if not isinstance(vertices, list) or len(vertices) != 4:
                 raise ValueError("Zona %s: '%s' debe tener 4 vértices."
                                  % (zid, clave))
-            for p in pts:
-                ok = (isinstance(p, (list, tuple)) and len(p) == 2
+            for vertice in vertices:
+                es_valido = (isinstance(vertice, (list, tuple)) and len(vertice) == 2
                       and all(isinstance(c, int) and not isinstance(c, bool)
-                              for c in p))
-                if not ok or not (0 <= p[0] <= ancho and 0 <= p[1] <= alto):
+                              for c in vertice))
+                if not es_valido or not (0 <= vertice[0] <= ancho and 0 <= vertice[1] <= alto):
                     raise ValueError(
                         "Zona %s: '%s' tiene vértices inválidos (esperaba "
                         "enteros dentro de %dx%d): %r"
-                        % (zid, clave, ancho, alto, pts))
-            if not es_poligono_valido(pts):
+                        % (zid, clave, ancho, alto, vertices))
+            if not es_poligono_valido(vertices):
                 raise ValueError(
                     "Zona %s: el polígono '%s' se auto-cruza o su área es 0."
                     % (zid, clave))
     return zonas
 
 
-def _formatear_literal(nombre, zonas):
-    """Serializa un literal de zonas en el estilo compacto de la configuracion:
-    cada poligono/agarro en una linea con sus 4 vertices."""
-    partes = []
-    for z in zonas:
-        partes.append("    {\n        \"id\": \"%s\",\n" % z["id"])
-        for clave in ("poligono", "agarro"):
-            pts = ", ".join("[%d, %d]" % (x, y) for x, y in z[clave])
-            partes.append("        \"%s\": [%s],\n" % (clave, pts))
-        partes.append("    },\n")
-    return "%s = [\n" % nombre + "".join(partes) + "]\n"
-
-
-def _reescribir_literal(nombre, zonas, ruta_fuente):
-    """Reescribe el literal `nombre` del archivo fuente (write-back a la
-    configuracion). Conserva el resto del archivo intacto."""
-    ruta = Path(ruta_fuente)
-    fuente = ruta.read_text(encoding="utf-8")
-    try:
-        arbol = ast.parse(fuente)
-    except SyntaxError:
-        return
-    nodo = None
-    for n in ast.walk(arbol):
-        if isinstance(n, ast.Assign):
-            targets = {t.id for t in n.targets if isinstance(t, ast.Name)}
-            if nombre in targets:
-                nodo = n
-                break
-    if nodo is None:
-        return
-    texto = _formatear_literal(nombre, zonas)
-    lineas = fuente.splitlines(keepends=True)
-    columna = lineas[nodo.lineno - 1].index(nombre)
-    lineas[nodo.lineno - 1] = lineas[nodo.lineno - 1][:columna] + texto
-    for i in range(nodo.lineno, nodo.end_lineno):
-        lineas[i] = ""
-    ruta.write_text("".join(lineas), encoding="utf-8")
-
-
-def guardar_zonas(zonas, ancho, alto, ruta_runtime, ruta_fuente,
-                  nombre_literal="_ZONAS_DEFAULT"):
-    """Persiste las zonas del editor: runtime JSON (lo consume el pipeline) y
-    write-back al literal de la configuracion. Devuelve la lista validada."""
-    zonas = validar_zonas(zonas, ancho, alto)
+def guardar_zonas(zonas, ancho, alto, ruta_runtime):
+    """Persiste las zonas del editor en el JSON de runtime. Devuelve la lista
+    validada. No toca ningun archivo de codigo fuente: las zonas de fabrica
+    viven en su propio JSON de solo lectura (ver infrastructure/zona_repository_json.py)."""
+    zonas_validas = validar_zonas(zonas, ancho, alto)
     ruta = Path(ruta_runtime)
     ruta.parent.mkdir(parents=True, exist_ok=True)
-    ruta.write_text(json.dumps(zonas, ensure_ascii=False, indent=2),
+    ruta.write_text(json.dumps(zonas_validas, ensure_ascii=False, indent=2),
                     encoding="utf-8")
-    _reescribir_literal(nombre_literal, zonas, ruta_fuente)
-    return zonas
+    return zonas_validas
 
 
-def restablecer_zonas(predeterminadas, ruta_runtime, ruta_fuente,
-                      nombre_literal="_ZONAS_DEFAULT"):
-    """Vuelve a las zonas de fabrica: borra el runtime, restaura el literal por
-    defecto y devuelve las predeterminadas."""
+def restablecer_zonas(predeterminadas, ruta_runtime):
+    """Vuelve a las zonas de fabrica: borra el runtime y devuelve las
+    predeterminadas (el JSON de fabrica nunca se modifica)."""
     Path(ruta_runtime).unlink(missing_ok=True)
-    _reescribir_literal(nombre_literal, predeterminadas, ruta_fuente)
     return predeterminadas
 
 
@@ -132,13 +89,13 @@ def escalar_zonas(zonas, ancho, alto, ancho_ref, alto_ref):
     """
     if ancho == ancho_ref and alto == alto_ref:
         return zonas
-    fx, fy = ancho / ancho_ref, alto / alto_ref
+    escala_x, escala_y = ancho / ancho_ref, alto / alto_ref
     zonas_escaladas = []
-    for z in zonas:
-        zon = dict(z)
-        zon["poligono"] = [[round(x * fx), round(y * fy)]
-                           for x, y in z["poligono"]]
-        zon["agarro"] = [[round(x * fx), round(y * fy)]
-                         for x, y in z["agarro"]]
-        zonas_escaladas.append(zon)
+    for zona in zonas:
+        zona_copia = dict(zona)
+        zona_copia["poligono"] = [[round(x * escala_x), round(y * escala_y)]
+                           for x, y in zona["poligono"]]
+        zona_copia["agarro"] = [[round(x * escala_x), round(y * escala_y)]
+                         for x, y in zona["agarro"]]
+        zonas_escaladas.append(zona_copia)
     return zonas_escaladas

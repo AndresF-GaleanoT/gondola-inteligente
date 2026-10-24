@@ -33,114 +33,114 @@ function Toggle({ checked, onChange, title, description }) {
 }
 
 export default function AccessibilityPanel() {
-  const [open, setOpen] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
-  const [preferences, setPreferences] = useState(() => {
+  const [panelAbierto, setPanelAbierto] = useState(false);
+  const [leyendo, setLeyendo] = useState(false);
+  const [preferencias, setPreferencias] = useState(() => {
     try {
       return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') };
     } catch {
       return DEFAULTS;
     }
   });
-  const triggerRef = useRef(null);
+  const botonAperturaRef = useRef(null);
   const panelRef = useRef(null);
 
   useEffect(() => {
-    const root = document.documentElement;
-    root.style.setProperty('--a11y-font-scale', String(preferences.fontScale / 100));
-    Object.entries(preferences).forEach(([key, value]) => {
-      if (key !== 'fontScale') root.dataset[key] = value ? 'true' : 'false';
+    const raiz = document.documentElement;
+    raiz.style.setProperty('--a11y-font-scale', String(preferencias.fontScale / 100));
+    Object.entries(preferencias).forEach(([clave, valor]) => {
+      if (clave !== 'fontScale') raiz.dataset[clave] = valor ? 'true' : 'false';
     });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
-  }, [preferences]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(preferencias));
+  }, [preferencias]);
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!panelAbierto) return undefined;
     const panel = panelRef.current;
-    const focusable = panel?.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])');
-    focusable?.[0]?.focus();
+    const elementosEnfocables = panel?.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])');
+    elementosEnfocables?.[0]?.focus();
 
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        setOpen(false);
-        triggerRef.current?.focus();
+    const alPresionarTecla = (evento) => {
+      if (evento.key === 'Escape') {
+        setPanelAbierto(false);
+        botonAperturaRef.current?.focus();
         return;
       }
-      if (event.key !== 'Tab' || !focusable?.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
+      if (evento.key !== 'Tab' || !elementosEnfocables?.length) return;
+      const primero = elementosEnfocables[0];
+      const ultimo = elementosEnfocables[elementosEnfocables.length - 1];
+      if (evento.shiftKey && document.activeElement === primero) {
+        evento.preventDefault();
+        ultimo.focus();
+      } else if (!evento.shiftKey && document.activeElement === ultimo) {
+        evento.preventDefault();
+        primero.focus();
       }
     };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [open]);
+    document.addEventListener('keydown', alPresionarTecla);
+    return () => document.removeEventListener('keydown', alPresionarTecla);
+  }, [panelAbierto]);
 
   useEffect(() => () => window.speechSynthesis?.cancel(), []);
 
   useEffect(() => {
-    if (!open) return undefined;
-    const previous = document.body.style.overflow;
+    if (!panelAbierto) return undefined;
+    const overflowPrevio = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = previous; };
-  }, [open]);
+    return () => { document.body.style.overflow = overflowPrevio; };
+  }, [panelAbierto]);
 
-  const update = (key, value) => setPreferences((current) => ({ ...current, [key]: value }));
+  const actualizarPreferencia = (clave, valor) => setPreferencias((actuales) => ({ ...actuales, [clave]: valor }));
 
-  const closePanel = () => {
-    setOpen(false);
-    window.setTimeout(() => triggerRef.current?.focus(), 0);
+  const cerrarPanel = () => {
+    setPanelAbierto(false);
+    window.setTimeout(() => botonAperturaRef.current?.focus(), 0);
   };
 
-  const reset = () => {
-    setPreferences(DEFAULTS);
+  const restablecerPreferencias = () => {
+    setPreferencias(DEFAULTS);
     window.speechSynthesis?.cancel();
-    setSpeaking(false);
+    setLeyendo(false);
   };
 
-  const readCurrentView = () => {
+  const leerVistaActual = () => {
     if (!('speechSynthesis' in window)) return;
-    if (speaking) {
+    if (leyendo) {
       window.speechSynthesis.cancel();
-      setSpeaking(false);
+      setLeyendo(false);
       return;
     }
-    const activePage = document.querySelector('main .page.active');
-    const text = activePage?.innerText?.replace(/\s+/g, ' ').trim();
-    if (!text) return;
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'es-CO';
-    utterance.rate = 0.95;
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
+    const paginaActiva = document.querySelector('main .page.active');
+    const texto = paginaActiva?.innerText?.replace(/\s+/g, ' ').trim();
+    if (!texto) return;
+    const enunciado = new SpeechSynthesisUtterance(texto);
+    enunciado.lang = 'es-CO';
+    enunciado.rate = 0.95;
+    enunciado.onend = () => setLeyendo(false);
+    enunciado.onerror = () => setLeyendo(false);
     window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-    setSpeaking(true);
+    window.speechSynthesis.speak(enunciado);
+    setLeyendo(true);
   };
 
   return (
     <>
       <button
-        ref={triggerRef}
+        ref={botonAperturaRef}
         type="button"
         className="a11y-trigger"
         aria-label="Abrir herramientas de accesibilidad"
-        aria-expanded={open}
+        aria-expanded={panelAbierto}
         aria-controls="accessibility-panel"
-        onClick={() => setOpen(true)}
+        onClick={() => setPanelAbierto(true)}
       >
         <Icon name="accessibility" />
         <span>Accesibilidad</span>
       </button>
 
-      {open && (
+      {panelAbierto && (
         <div className="a11y-layer">
-          <button className="a11y-backdrop" type="button" aria-label="Cerrar herramientas de accesibilidad" onClick={closePanel} />
+          <button className="a11y-backdrop" type="button" aria-label="Cerrar herramientas de accesibilidad" onClick={cerrarPanel} />
           <aside
             ref={panelRef}
             id="accessibility-panel"
@@ -155,7 +155,7 @@ export default function AccessibilityPanel() {
                 <p>Preferencias de visualización</p>
                 <h2 id="a11y-title">Accesibilidad</h2>
               </div>
-              <button type="button" className="a11y-close" aria-label="Cerrar panel" onClick={closePanel}><Icon name="close" /></button>
+              <button type="button" className="a11y-close" aria-label="Cerrar panel" onClick={cerrarPanel}><Icon name="close" /></button>
             </header>
 
             <div className="a11y-panel-body">
@@ -164,25 +164,25 @@ export default function AccessibilityPanel() {
                 <div className="a11y-font-control">
                   <span><b>Tamaño del texto</b><small>Ajusta toda la interfaz</small></span>
                   <div role="group" aria-label="Tamaño del texto">
-                    {[100, 112, 125].map((size) => (
-                      <button key={size} type="button" className={preferences.fontScale === size ? 'active' : ''} aria-pressed={preferences.fontScale === size} onClick={() => update('fontScale', size)}>{size}%</button>
+                    {[100, 112, 125].map((tamano) => (
+                      <button key={tamano} type="button" className={preferencias.fontScale === tamano ? 'active' : ''} aria-pressed={preferencias.fontScale === tamano} onClick={() => actualizarPreferencia('fontScale', tamano)}>{tamano}%</button>
                     ))}
                   </div>
                 </div>
-                <Toggle checked={preferences.readableFont} onChange={(value) => update('readableFont', value)} title="Tipografía legible" description="Reduce estilos decorativos" />
-                <button type="button" className={`a11y-read${speaking ? ' active' : ''}`} onClick={readCurrentView} aria-pressed={speaking}>
+                <Toggle checked={preferencias.readableFont} onChange={(valor) => actualizarPreferencia('readableFont', valor)} title="Tipografía legible" description="Reduce estilos decorativos" />
+                <button type="button" className={`a11y-read${leyendo ? ' active' : ''}`} onClick={leerVistaActual} aria-pressed={leyendo}>
                   <Icon name="volume" />
-                  <span><b>{speaking ? 'Detener lectura' : 'Leer esta sección'}</b><small>Usa la voz disponible en el dispositivo</small></span>
+                  <span><b>{leyendo ? 'Detener lectura' : 'Leer esta sección'}</b><small>Usa la voz disponible en el dispositivo</small></span>
                 </button>
               </section>
 
               <section className="a11y-group" aria-labelledby="visual-settings">
                 <h3 id="visual-settings">Visibilidad e interacción</h3>
-                <Toggle checked={preferences.highContrast} onChange={(value) => update('highContrast', value)} title="Alto contraste" description="Refuerza texto, bordes y fondos" />
-                <Toggle checked={preferences.grayscale} onChange={(value) => update('grayscale', value)} title="Escala de grises" description="Elimina distracciones de color" />
-                <Toggle checked={preferences.highlightControls} onChange={(value) => update('highlightControls', value)} title="Resaltar controles" description="Identifica botones y enlaces" />
-                <Toggle checked={preferences.largeCursor} onChange={(value) => update('largeCursor', value)} title="Cursor grande" description="Facilita apuntar y seleccionar" />
-                <Toggle checked={preferences.reduceMotion} onChange={(value) => update('reduceMotion', value)} title="Reducir movimiento" description="Desactiva animaciones y transiciones" />
+                <Toggle checked={preferencias.highContrast} onChange={(valor) => actualizarPreferencia('highContrast', valor)} title="Alto contraste" description="Refuerza texto, bordes y fondos" />
+                <Toggle checked={preferencias.grayscale} onChange={(valor) => actualizarPreferencia('grayscale', valor)} title="Escala de grises" description="Elimina distracciones de color" />
+                <Toggle checked={preferencias.highlightControls} onChange={(valor) => actualizarPreferencia('highlightControls', valor)} title="Resaltar controles" description="Identifica botones y enlaces" />
+                <Toggle checked={preferencias.largeCursor} onChange={(valor) => actualizarPreferencia('largeCursor', valor)} title="Cursor grande" description="Facilita apuntar y seleccionar" />
+                <Toggle checked={preferencias.reduceMotion} onChange={(valor) => actualizarPreferencia('reduceMotion', valor)} title="Reducir movimiento" description="Desactiva animaciones y transiciones" />
               </section>
 
               <div className="a11y-help" role="note">
@@ -192,7 +192,7 @@ export default function AccessibilityPanel() {
             </div>
 
             <footer className="a11y-panel-foot">
-              <button type="button" onClick={reset}><Icon name="reset" />Restablecer preferencias</button>
+              <button type="button" onClick={restablecerPreferencias}><Icon name="reset" />Restablecer preferencias</button>
               <span>Los ajustes se guardan en este dispositivo.</span>
             </footer>
           </aside>

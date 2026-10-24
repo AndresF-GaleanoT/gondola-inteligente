@@ -1,0 +1,420 @@
+\documentclass[11pt,a4paper]{report}
+
+% ============================================================================
+% RetailVision Edge AI — Manual de Usuario
+% Universidad Santo Tomás, Seccional Tunja
+% ============================================================================
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[spanish,es-noindentfirst]{babel}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage{array}
+\usepackage{colortbl}
+\usepackage{microtype}
+\sloppy
+
+% --- Paleta (coherente con el dashboard) ------------------------------------
+\definecolor{rvAccent}{HTML}{C76A00}
+\definecolor{rvAccentDark}{HTML}{8A4600}
+\definecolor{rvInk}{HTML}{2C3242}
+\definecolor{rvMuted}{HTML}{5B6478}
+\definecolor{rvLine}{HTML}{CCD4E2}
+\definecolor{rvCodeBg}{HTML}{F2F3F6}
+\definecolor{rvGreen}{HTML}{1F9D66}
+\definecolor{rvRed}{HTML}{D33B3B}
+
+\titleformat{\chapter}[display]
+  {\normalfont\bfseries\color{rvInk}}
+  {\color{rvAccent}\Large\chaptertitlename\ \thechapter}
+  {6pt}{\Huge}
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{rvInk}}{\thesection}{0.6em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{rvAccentDark}}{\thesubsection}{0.6em}{}
+
+\setlength{\headheight}{14.5pt}
+\addtolength{\topmargin}{-0.5pt}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\fancyhead[L]{\footnotesize\color{rvMuted} RetailVision Edge AI}
+\fancyhead[R]{\footnotesize\color{rvMuted} \leftmark}
+\renewcommand{\chaptermark}[1]{\markboth{#1}{}}
+\fancyfoot[C]{\small\color{rvMuted} \thepage}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=rvAccentDark,
+  urlcolor=rvAccentDark,
+  citecolor=rvAccentDark,
+  pdftitle={RetailVision Edge AI -- Manual de Usuario},
+  pdfauthor={Equipo RetailVision Edge AI -- Universidad Santo Tomas, Seccional Tunja},
+}
+
+\newcommand{\rvnota}[1]{%
+  \par\noindent\fcolorbox{rvAccent}{rvCodeBg}{%
+    \parbox{0.95\linewidth}{\small \textbf{\color{rvAccentDark}Nota:} #1}%
+  }\par\vspace{4pt}
+}
+\newcommand{\rvconsejo}[1]{%
+  \par\noindent\fcolorbox{rvGreen}{rvCodeBg}{%
+    \parbox{0.95\linewidth}{\small \textbf{\color{rvGreen}Consejo:} #1}%
+  }\par\vspace{4pt}
+}
+\newcommand{\rvpaso}[1]{\textbf{\color{rvAccentDark}#1}}
+
+\setlist[itemize]{leftmargin=1.4em}
+\setlist[enumerate]{leftmargin=1.6em}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\Huge\bfseries\color{rvAccent} RetailVision Edge AI\par}
+\vspace{0.4cm}
+{\Large\color{rvInk} Manual de Usuario\par}
+\vspace{0.3cm}
+{\large\color{rvMuted} Guía de uso del panel de analítica de comportamiento en tienda\par}
+\vspace{2.2cm}
+
+{\large\color{rvInk}\textbf{Universidad Santo Tomás, Seccional Tunja}\par}
+\vspace{0.2cm}
+{\normalsize\color{rvMuted} Proyecto de Investigación / Semillero\par}
+\vspace{0.15cm}
+{\normalsize\color{rvMuted} Docente asesor: Sergio Arley Puerto Moreno\par}
+
+\vspace{2.2cm}
+{\normalsize\color{rvInk}\textbf{Equipo}\par}
+\vspace{0.3cm}
+\begin{tabular}{l}
+Silvana Sofía Siza Soriano \\
+Yeikov Jared Ramos Sánchez \\
+Sarita Toloza Buitrago \\
+Juan David Sandoval Bello \\
+Thomas Felipe Cepeda Mogollón \\
+Wendy Mariana Vargas Ramírez \\
+Andrés Felipe Galeano Téllez \\
+Sara Valentina Caicedo Duarte \\
+\end{tabular}
+
+\vfill
+{\large\color{rvMuted} 2026\par}
+\end{titlepage}
+
+\tableofcontents
+\clearpage
+
+% ============================================================================
+\chapter{Bienvenida}
+% ============================================================================
+
+\section{¿Qué es RetailVision Edge AI?}
+
+RetailVision Edge AI es un panel web que analiza el video de las cámaras de una góndola o
+estante y responde, de forma automática, tres preguntas que normalmente son difíciles de medir
+en una tienda física:
+
+\begin{itemize}
+  \item ¿Cuántas personas se detienen frente a cada estante?
+  \item ¿Quién \textbf{toma} un producto y lo \textbf{devuelve} sin comprarlo?
+  \item ¿Qué zonas de la góndola funcionan mejor y cuáles pasan desapercibidas?
+\end{itemize}
+
+Con esa información, el sistema propone, en lenguaje sencillo, cómo redistribuir los productos
+para aprovechar mejor el espacio (lo que en retail se conoce como \textit{space management}).
+
+\section{¿A quién está dirigido este manual?}
+
+A cualquier persona que vaya a \textbf{operar el panel}: cargar videos, calibrar las zonas de
+análisis y leer los resultados. No se requieren conocimientos de programación. Si busca
+documentación técnica sobre cómo está construido el sistema, consulte el \textbf{Manual
+Técnico} que acompaña este documento.
+
+\rvnota{Este sistema \textbf{no identifica personas}. Los rostros se difuminan automáticamente en
+cada video analizado, antes de mostrarse en pantalla (ver capítulo \ref{cap:privacidad}).}
+
+% ============================================================================
+\chapter{Primeros pasos}
+% ============================================================================
+
+\section{Requisitos}
+
+\begin{itemize}
+  \item Un navegador web moderno (Chrome, Edge o Firefox recientes).
+  \item Acceso a la dirección donde esté publicado el panel (por ejemplo,
+    \texttt{http://localhost:5173} en una instalación local).
+  \item Un video de la góndola a analizar, en formato \texttt{.mp4}, \texttt{.avi},
+    \texttt{.mov}, \texttt{.mkv} o \texttt{.webm}, de hasta 500\,MB.
+\end{itemize}
+
+\section{La pantalla principal}
+
+Al abrir el panel se ve una \textbf{barra lateral} a la izquierda con cinco secciones, y el
+contenido de cada sección a la derecha:
+
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{3.3cm} >{\raggedright\arraybackslash}p{10.2cm}}
+\toprule
+\rowcolor{rvCodeBg}\textbf{Sección} & \textbf{Para qué sirve} \\
+\midrule
+01 Lectura general & Resumen del último análisis: cifras clave y la escena analizada en vivo. \\
+02 Analítica & Gráficas del comportamiento de los visitantes (embudo, permanencia, recorridos). \\
+03 Plano de tienda & Mapa de calor y clasificación de cada góndola (caliente / templada / fría). \\
+04 Evidencias & Lista de cada toma y devolución detectada, con su momento exacto. \\
+05 Informe & Documento resumen, listo para imprimir o guardar como PDF. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+La barra lateral puede \textbf{contraerse} con el botón de flecha junto al logotipo, para dejar
+más espacio a la pantalla.
+
+% ============================================================================
+\chapter{Flujo de trabajo: de un video a un resultado}
+% ============================================================================
+
+El uso típico del panel sigue cuatro pasos, siempre desde la sección \textbf{Lectura general}.
+
+\section{\rvpaso{Paso 1 --- Subir el video}}
+
+Haga clic en \textbf{``Seleccionar archivo de video''} y elija el video de la góndola desde su
+computador. El sistema lo sube y, automáticamente, extrae un fotograma de \textbf{vista previa}
+--- con los rostros ya difuminados --- para que pueda calibrar las zonas sin ver caras
+reconocibles.
+
+\rvnota{El análisis \textbf{todavía no se ejecuta} en este paso. Solo se prepara el video y la
+vista previa.}
+
+\section{\rvpaso{Paso 2 --- Calibrar las zonas}}
+
+Con la vista previa en pantalla, haga clic en \textbf{``Editar zonas''}. Aparecerá un editor
+donde cada góndola está marcada con dos polígonos:
+
+\begin{itemize}
+  \item Un polígono \textbf{grande}, que cubre el cuerpo de la persona (define cuándo alguien
+    ``visita'' esa zona).
+  \item Un polígono \textbf{punteado, más pequeño}, que marca dónde la \textbf{mano} toca el
+    producto o el estante (define cuándo se cuenta una toma o devolución).
+\end{itemize}
+
+Arrastre los vértices (puntos) de cada polígono hasta que coincidan con los límites reales de la
+góndola en la imagen. Un polígono que se cruza a sí mismo o queda sin área se marca en rojo y no
+se puede guardar hasta corregirlo.
+
+\rvconsejo{Si el video es muy parecido al anterior (misma cámara, mismo ángulo), normalmente no
+hace falta recalibrar: las zonas guardadas se conservan entre análisis. Use \textbf{``Restablecer''}
+dentro del editor solo si quiere volver a las zonas de fábrica.}
+
+Al hacer clic en \textbf{``Guardar zonas''}, el sistema valida los polígonos y, si ya existe un
+análisis previo del mismo video, lo \textbf{vuelve a ejecutar automáticamente} con las zonas
+nuevas.
+
+\section{\rvpaso{Paso 3 --- Ejecutar el análisis}}
+
+Haga clic en \textbf{``Analizar video''}. El procesamiento corre en segundo plano; la barra de
+estado muestra el progreso (\textit{``Preparando modelos y video''}, \textit{``Analizando el
+video con YOLO''}\ldots). Según la duración del video y si el servidor cuenta con tarjeta
+gráfica, esto puede tardar desde segundos hasta varios minutos.
+
+\rvnota{No es necesario mantener la pestaña abierta todo el tiempo: al volver, el estado se
+restaura automáticamente.}
+
+\section{\rvpaso{Paso 4 --- Revisar los resultados}}
+
+Cuando el estado cambia a \textbf{``completado''}, las cinco secciones del panel se llenan con
+los datos del análisis. Puede pasar directamente a ``Analítica'', ``Plano de tienda'',
+``Evidencias'' o ``Informe'' para explorarlos (capítulo \ref{cap:vistas}).
+
+\section{Reiniciar métricas}
+
+El botón \textbf{``Reiniciar métricas''} borra los resultados del análisis actual (no las zonas
+calibradas, que se conservan) para empezar de cero con un nuevo video.
+
+% ============================================================================
+\chapter{Las cinco vistas del panel}
+\label{cap:vistas}
+% ============================================================================
+
+\section{01 --- Lectura general}
+
+Muestra, de un vistazo:
+
+\begin{itemize}
+  \item \textbf{Visitantes únicos}: personas distintas detectadas frente a la góndola.
+  \item \textbf{Tomas detectadas}: productos retirados del estante.
+  \item \textbf{Tasa de interacción}: qué porcentaje de visitantes llegó a tomar un producto.
+  \item \textbf{Tasa de devolución}: de las tomas, cuántas terminaron en \textit{put-back}
+    (se tomó el producto y se volvió a dejar).
+  \item La \textbf{escena analizada}: una reproducción de los fotogramas ya anotados por el
+    sistema (zonas dibujadas, etiquetas de cada persona), siempre con los rostros difuminados.
+\end{itemize}
+
+\section{02 --- Analítica}
+
+Cuatro gráficas complementarias:
+
+\begin{itemize}
+  \item \textbf{Embudo de interacción}: cuántas personas pasan de ``tránsito'' a ``parada'',
+    ``aproximación'', ``toma'' y, finalmente, cuántas no mostraron devolución.
+  \item \textbf{Permanencia promedio}: cuánto tiempo se detiene la gente frente a cada góndola.
+  \item \textbf{Comportamiento observado}: reparte a los visitantes entre ``sin toma'', ``toma
+    sin devolución'' y ``toma y devolución''.
+  \item \textbf{Flujo entre góndolas}: cómo se mueve la gente de una zona a otra (diagrama de
+    flujo / Sankey).
+\end{itemize}
+
+\section{03 --- Plano de tienda}
+
+Un \textbf{mapa de calor} muestra, con colores, dónde se concentró más la circulación y la
+permanencia. A la derecha, cada góndola aparece con su \textbf{clasificación}:
+
+\begin{center}
+\begin{tabular}{lp{10.5cm}}
+\toprule
+\rowcolor{rvCodeBg}\textbf{Clasificación} & \textbf{Qué significa} \\
+\midrule
+\textcolor{rvRed}{Caliente} & Alto tráfico e interacción: el estante que mejor funciona hoy. \\
+Templada & Tráfico intermedio: hay potencial de mejora. \\
+\textcolor{rvMuted}{Fría} & Bajo tráfico: candidata a recibir productos de mayor rotación, o a
+reducir el espacio que ocupa. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Debajo del mapa, cada zona incluye una \textbf{recomendación en texto} generada automáticamente
+a partir de sus propios datos (nunca es una opinión genérica: siempre cita las cifras observadas
+de esa zona).
+
+\section{04 --- Evidencias}
+
+Una lista cronológica de cada \textbf{toma} y \textbf{devolución} detectada, con la hora dentro
+del video, la zona donde ocurrió y un identificador temporal de la persona (que \textbf{no} es un
+dato que permita reconocerla: se reinicia en cada análisis).
+
+\section{05 --- Informe}
+
+Un documento de una sola página, pensado para \textbf{imprimir o guardar como PDF}
+(botón \textbf{``Imprimir / guardar PDF''}), con el resumen ejecutivo, los hallazgos principales,
+el detalle por zona y las recomendaciones del agente. Útil para compartir con el equipo de
+mercadeo o de operaciones sin necesidad de abrir el panel.
+
+% ============================================================================
+\chapter{Interpretando las recomendaciones}
+% ============================================================================
+
+Las recomendaciones del panel las genera un \textbf{motor de reglas} que solo usa los datos
+observados por las cámaras (no es un modelo de lenguaje ni una opinión externa). Dos tipos de
+recomendación aparecen en el panel:
+
+\begin{itemize}
+  \item \textbf{Por zona}: un diagnóstico y una acción sugerida (por ejemplo, ajustar precio o
+    señalización si hay mucha ``consideración'' --- toma y devolución --- pero poca compra).
+  \item \textbf{De planograma}: cruza la zona más caliente con la más fría y propone un reparto
+    de espacio (\% de \textit{facing}) proporcional al interés observado en cada una.
+\end{itemize}
+
+\rvnota{Estas recomendaciones son un \textbf{apoyo a la decisión}, no un reemplazo del criterio
+humano: deben contrastarse con datos de ventas, inventario y la realidad del punto de venta.}
+
+% ============================================================================
+\chapter{Accesibilidad}
+% ============================================================================
+
+El botón \textbf{``Accesibilidad''}, siempre visible en la esquina inferior derecha, abre un
+panel de preferencias de visualización que se guardan en el propio dispositivo:
+
+\begin{center}
+\begin{tabular}{lp{10.5cm}}
+\toprule
+\rowcolor{rvCodeBg}\textbf{Opción} & \textbf{Efecto} \\
+\midrule
+Tamaño del texto & Ajusta toda la interfaz a 100\,\%, 112\,\% o 125\,\%. \\
+Tipografía legible & Reduce los estilos decorativos de las fuentes. \\
+Leer esta sección & Lee en voz alta el contenido de la pantalla actual (usa la voz del
+dispositivo). \\
+Alto contraste & Refuerza el contraste de textos, bordes y fondos. \\
+Escala de grises & Elimina el color para reducir distracciones visuales. \\
+Resaltar controles & Marca con un borde visible cada botón y enlace. \\
+Cursor grande & Facilita apuntar y hacer clic. \\
+Reducir movimiento & Desactiva animaciones y transiciones. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Todo el panel puede recorrerse con el teclado (\texttt{Tab} para moverse, \texttt{Enter} para
+activar, \texttt{Esc} para cerrar paneles).
+
+% ============================================================================
+\chapter{Privacidad: lo que el sistema nunca hace}
+\label{cap:privacidad}
+% ============================================================================
+
+\begin{itemize}
+  \item \textbf{No reconoce rostros.} No identifica ni guarda quién es cada persona.
+  \item \textbf{Difumina las caras} de forma automática en todos los fotogramas que se muestran
+    o se guardan, antes de cualquier otro procesamiento.
+  \item \textbf{No envía el video a internet} para analizarlo: todo el procesamiento ocurre en
+    el propio equipo donde está instalado el sistema.
+  \item Los identificadores de cada persona en pantalla (``ID: 3'', por ejemplo) son
+    \textbf{temporales}: se reinician en cada análisis y no se cruzan con ninguna otra base de
+    datos.
+\end{itemize}
+
+Esto cumple con la \textbf{Ley 1581 de 2012} de Colombia sobre protección de datos personales.
+
+% ============================================================================
+\chapter{Preguntas frecuentes}
+% ============================================================================
+
+\begin{description}[leftmargin=0pt,style=nextline]
+  \item[¿Por qué el video tarda en analizarse?] El tiempo depende de la duración del video y de
+    si el equipo tiene tarjeta gráfica. Un video de un minuto suele tardar entre 15 segundos
+    (con GPU) y unos pocos minutos (sin GPU).
+  \item[¿Puedo subir otro video mientras uno se está analizando?] No: el sistema procesa un
+    análisis a la vez y responderá que hay uno ``en curso'' hasta que termine.
+  \item[¿Qué pasa si edito las zonas después de analizar?] El sistema relanza automáticamente el
+    análisis sobre el mismo video con las zonas nuevas, sin que tenga que volver a subirlo.
+  \item[¿Se pierde el análisis si cierro la pestaña?] No. El estado se guarda en el servidor y se
+    restaura al volver a abrir el panel.
+  \item[¿Las cifras en ``0'' significan un error?] No necesariamente: si aún no se ha subido ni
+    analizado ningún video, el panel muestra ceros como estado inicial.
+\end{description}
+
+% ============================================================================
+\chapter{Glosario}
+% ============================================================================
+
+\begin{description}[leftmargin=0pt,style=nextline]
+  \item[Pick-up] Toma de un producto del estante por parte de un visitante.
+  \item[Put-back] Devolución de un producto al estante tras haberlo tomado.
+  \item[Dwell time] Tiempo de permanencia de una persona frente a una zona.
+  \item[Heatmap (mapa de calor)] Representación visual de dónde se concentró más tráfico o
+    permanencia.
+  \item[Facing] Porcentaje de espacio de góndola asignado a una categoría de producto.
+  \item[Planograma] Plan de distribución de productos sobre la góndola.
+  \item[Zona de agarro] El área concreta, dentro de cada góndola, donde el sistema detecta el
+    contacto de la mano con el producto.
+\end{description}
+
+% ============================================================================
+\chapter{Soporte}
+% ============================================================================
+
+Para dudas sobre el uso del panel o para reportar un comportamiento inesperado, contacte al
+equipo de RetailVision Edge AI a través del docente asesor del proyecto, \textbf{Sergio Arley
+Puerto Moreno}, en la Universidad Santo Tomás, Seccional Tunja.
+
+\end{document}

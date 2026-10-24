@@ -27,19 +27,19 @@ def main():
     os.makedirs(args.out, exist_ok=True)
 
     paso = max(1, int(round(fps * args.cada)))
-    fi = 1
-    n = 0
-    while fi <= total:
-        cap.set(cv2.CAP_PROP_POS_FRAMES, fi - 1)
+    indice_frame = 1
+    guardados = 0
+    while indice_frame <= total:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, indice_frame - 1)
         ok, frame = cap.read()
         if not ok:
             break
-        t = fi / fps
-        cv2.imwrite(os.path.join(args.out, f"f_{fi:03d}_t{t:04.1f}.png"), frame)
-        n += 1
-        fi += paso
+        segundo = indice_frame / fps
+        cv2.imwrite(os.path.join(args.out, f"f_{indice_frame:03d}_t{segundo:04.1f}.png"), frame)
+        guardados += 1
+        indice_frame += paso
     cap.release()
-    print(f"OK: {n} frames guardados en {args.out} ({args.cada}s, fps={fps:.0f})")
+    print(f"OK: {guardados} frames guardados en {args.out} ({args.cada}s, fps={fps:.0f})")
 
 
 if __name__ == "__main__":

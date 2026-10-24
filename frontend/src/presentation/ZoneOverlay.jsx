@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 
-const COLORES = ['#d9ed55', '#8ab4ff', '#ff8f6b'];
+const COLORES_ZONA = ['#2bff88', '#ffb000', '#ff4545'];
 
 export default function ZoneOverlay({
   zonas,
@@ -16,33 +16,33 @@ export default function ZoneOverlay({
   src,
   tipo,
 }) {
-  const [dims, setDims] = useState(null);
+  const [dimensiones, setDimensiones] = useState(null);
 
-  const [refW, refH] = referencia || [1280, 720];
-  const fx = dims ? dims.w / refW : 1;
-  const fy = dims ? dims.h / refH : 1;
+  const [anchoRef, altoRef] = referencia || [1280, 720];
+  const escalaX = dimensiones ? dimensiones.w / anchoRef : 1;
+  const escalaY = dimensiones ? dimensiones.h / altoRef : 1;
 
-  const pts = (lista) =>
+  const puntosSvg = (lista) =>
     lista
-      .map((p) => [p[0] * fx, p[1] * fy].map((c) => c.toFixed(1)).join(','))
+      .map((p) => [p[0] * escalaX, p[1] * escalaY].map((c) => c.toFixed(1)).join(','))
       .join(' ');
 
-  const etiqueta = (p) => [p[0] * fx + 14, p[1] * fy + 20];
+  const posicionEtiqueta = (p) => [p[0] * escalaX + 14, p[1] * escalaY + 20];
 
   return (
     <div
       className="zone-overlay"
-      style={{ aspectRatio: dims ? `${dims.w} / ${dims.h}` : '16 / 9' }}
+      style={{ aspectRatio: dimensiones ? `${dimensiones.w} / ${dimensiones.h}` : '16 / 9' }}
     >
       <img
         className="zone-dims-io"
         src={frameUrl}
         alt=""
         aria-hidden="true"
-        onLoad={(e) => {
-          const el = e.currentTarget;
-          if (el.naturalWidth > 0) {
-            setDims({ w: el.naturalWidth, h: el.naturalHeight });
+        onLoad={(evento) => {
+          const imagen = evento.currentTarget;
+          if (imagen.naturalWidth > 0) {
+            setDimensiones({ w: imagen.naturalWidth, h: imagen.naturalHeight });
           }
         }}
       />
@@ -59,23 +59,23 @@ export default function ZoneOverlay({
       ) : (
         <img className="zone-media" src={src} alt="Visión de las góndolas" />
       )}
-      {zonas && dims && (
-        <svg viewBox={`0 0 ${dims.w} ${dims.h}`} preserveAspectRatio="xMidYMid meet">
-          {zonas.map((z, i) => (
-            <g key={z.id} stroke={COLORES[i]}>
+      {zonas && dimensiones && (
+        <svg viewBox={`0 0 ${dimensiones.w} ${dimensiones.h}`} preserveAspectRatio="xMidYMid meet">
+          {zonas.map((zona, indice) => (
+            <g key={zona.id} stroke={COLORES_ZONA[indice]}>
               <polygon
-                points={pts(z.poligono)}
+                points={puntosSvg(zona.poligono)}
                 fill="none"
-                strokeWidth={Math.max(2, dims.w * 0.0025)}
+                strokeWidth={Math.max(2, dimensiones.w * 0.0025)}
               />
               <polygon
-                points={pts(z.agarro)}
+                points={puntosSvg(zona.agarro)}
                 fill="none"
-                strokeWidth={Math.max(1.5, dims.w * 0.0015)}
-                strokeDasharray={Math.max(5, dims.w * 0.006)}
+                strokeWidth={Math.max(1.5, dimensiones.w * 0.0015)}
+                strokeDasharray={Math.max(5, dimensiones.w * 0.006)}
               />
-              <text x={etiqueta(z.poligono[0])[0]} y={etiqueta(z.poligono[0])[1]}>
-                {z.id}
+              <text x={posicionEtiqueta(zona.poligono[0])[0]} y={posicionEtiqueta(zona.poligono[0])[1]}>
+                {zona.id}
               </text>
             </g>
           ))}

@@ -1,9 +1,18 @@
 # CONFIG - constantes ajustables de la Gondola Inteligente (en un solo lugar).
-
-from pathlib import Path
+#
+# Las ZONAS ya NO viven en un global mutable de este modulo: el acceso
+# `config.ZONAS` (y `from .config import ZONAS`) se resuelve en caliente via
+# __getattr__ (al final del archivo) contra `zona_repository`, un
+# ZonaRepository (puerto en application/zona_repository.py, adaptador JSON en
+# infrastructure/zona_repository_json.py). Antes, guardar/restablecer zonas
+# reescribia este mismo archivo por AST; ahora las zonas de fabrica viven en
+# config/zonas_default.json (solo lectura) y las personalizadas en
+# config/zonas_runtime.json. config.py sigue siendo el "cableado" (composition
+# root) de esa dependencia, pero sin estado mutable propio.
 
 from .application import paths
 from .application import zonas as _zonas
+from .infrastructure.zona_repository_json import JsonZonaRepository
 
 
 # --- Dimensiones reales del video (se fijan con el primer frame) ------------
@@ -53,37 +62,23 @@ PROCESAR_CADA_N = 4
 VISION_FPS_OBJETIVO = 5
 
 # --- Zonas del layout --------------------------------------------------------
-# Coordenadas en px del frame de REFERENCIA (1280x720). NO MODIFICAR sin
-# recalibrar el video. Se escalan en runtime a la resolucion real (ver
-# escalar_zonas).
+# Coordenadas en px del frame de REFERENCIA (1280x720). Se escalan en runtime
+# a la resolucion real del video (ver escalar_zonas).
 # Las zonas son franjas verticales (izquierda / centro / derecha) que cubren el
 # area real delante de cada estante. `poligono` cubre el cuerpo de la persona;
 # `agarro` marca la zona contenida donde la MANO toca el producto/percha (para
 # que el gesto entre y salga del agarro y se complete el pick-up). La zona de un
 # pick-up se decide priorizando la muneca (agarro) sobre el centroide del cuerpo.
-# El editor web (GET/PUT /api/zonas) reescribe este literal y ademas guarda una
-# copia en config/zonas_runtime.json que el pipeline prioriza al importar.
-_ZONAS_DEFAULT = [
-    {
-        "id": "Estante_Izquierdo",
-        "poligono": [[395, 5], [515, 0], [304, 719], [0, 719]],
-        "agarro": [[334, 17], [484, 16], [310, 651], [97, 651]],
-    },
-    {
-        "id": "Estante_Central",
-        "poligono": [[556, 0], [766, 0], [804, 673], [416, 716]],
-        "agarro": [[576, 0], [749, 0], [854, 709], [453, 696]],
-    },
-    {
-        "id": "Estante_Derecho",
-        "poligono": [[770, 0], [900, 0], [1235, 664], [1002, 586]],
-        "agarro": [[772, 0], [916, 7], [1187, 637], [1005, 537]],
-    },
-]
-
-# Archivo de runtime: sobrescribe los valores de _ZONAS_DEFAULT cuando existe
-# (lo escribe el editor web al guardar). El pipeline lo prioriza al importar.
+#
+# Las zonas de FABRICA viven en config/zonas_default.json (solo lectura, no se
+# reescribe nunca). El editor web (GET/PUT /api/zonas) persiste su personalizacion
+# en config/zonas_runtime.json, que el pipeline prioriza al importar. Ese
+# contrato de persistencia esta detras del puerto ZonaRepository.
+DEFAULT_ZONAS = str(paths.CONFIG_DIR / "zonas_default.json")
 RUNTIME_ZONAS = str(paths.CONFIG_DIR / "zonas_runtime.json")
+
+zona_repository = JsonZonaRepository(RUNTIME_ZONAS, DEFAULT_ZONAS,
+                                      ANCHO_REF_ZONAS, ALTO_REF_ZONAS)
 
 
 def validar_zonas(zonas):
@@ -92,45 +87,36 @@ def validar_zonas(zonas):
 
 
 def guardar_zonas(zonas):
-    """Persiste las zonas del editor: runtime JSON (lo consume el pipeline)
-    Y write-back al literal _ZONAS_DEFAULT de la configuracion. Devuelve la
-    lista validada y actualiza la configuracion en memoria."""
-    global ZONAS
-    ZONAS = _zonas.guardar_zonas(zonas, ANCHO_REF_ZONAS, ALTO_REF_ZONAS,
-                                 RUNTIME_ZONAS, Path(__file__))
-    return ZONAS
+    """Persiste las zonas del editor (vía zona_repository) y devuelve la lista
+    validada."""
+    return zona_repository.guardar(zonas)
 
 
 def restablecer_zonas():
-    """Vuelve a las zonas de fabrica: borra el runtime, restaura el literal
-    por defecto y refresca la configuracion en memoria."""
-    global ZONAS
-    ZONAS = _zonas.restablecer_zonas(_ZONAS_DEFAULT, RUNTIME_ZONAS,
-                                     Path(__file__))
-    return ZONAS
-
-
-def _cargar_zonas():
-    """Zonas vigentes: el runtime del editor si existe (y es valido); si no,
-    los valores por defecto del literal _ZONAS_DEFAULT."""
-    return _zonas.cargar_zonas(RUNTIME_ZONAS, _ZONAS_DEFAULT,
-                               ANCHO_REF_ZONAS, ALTO_REF_ZONAS)
-
-
-ZONAS = _cargar_zonas()
+    """Vuelve a las zonas de fabrica (vía zona_repository)."""
+    return zona_repository.restablecer()
 
 
 def escalar_zonas(ancho, alto):
-    """Escala las zonas (calibradas a ANCHO_REF_ZONAS x ALTO_REF_ZONAS) hasta
-    la resolucion real del video. Si coincide con la referencia se devuelve la
-    lista original tal cual (mismo comportamiento que antes).
+    """Escala las zonas vigentes (calibradas a ANCHO_REF_ZONAS x ALTO_REF_ZONAS)
+    hasta la resolucion real del video. Si coincide con la referencia se
+    devuelve la lista original tal cual (mismo comportamiento que antes).
 
     El area de "agarro" es un POLIGONO (como en la config original): se escala
     punto a punto para conservar su forma. Antes se reducia a su bounding-box
     (rectangulo), lo que agrandaba la zona de gesto en videos de otra resolucion.
     """
-    return _zonas.escalar_zonas(ZONAS, ancho, alto,
+    return _zonas.escalar_zonas(zona_repository.obtener(), ancho, alto,
                                 ANCHO_REF_ZONAS, ALTO_REF_ZONAS)
+
+
+def __getattr__(nombre):
+    """Resuelve `config.ZONAS` (y `from app.config import ZONAS`) en caliente
+    contra zona_repository, en vez de cachear un global que quedaba
+    desactualizado hasta la proxima reescritura manual (PEP 562)."""
+    if nombre == "ZONAS":
+        return zona_repository.obtener()
+    raise AttributeError(f"module {__name__!r} has no attribute {nombre!r}")
 
 # --- Clasificacion de comportamiento ----------------------------------------
 QUIETO_PARA_VER = 30
@@ -174,20 +160,15 @@ CABEZA_CENTRO_Y = 0.50
 SUAVIZADO_CABEZA = 0.5
 
 # --- Colores y etiquetas de accion -------------------------------------------
-COLOR_INSPECCIONANDO = (0, 165, 255)
-COLOR_LLEGANDO = (0, 255, 255)
-COLOR_TRANSITANDO = (255, 0, 0)
-COLOR_ZONA = (0, 255, 0)
-COLOR_MANO_EN_ESTANTE = (0, 255, 255)
-COLOR_DEVOLVIENDO = (255, 0, 255)
-COLOR_ADQUIRIDO = (0, 255, 127)
-
-ACCION_INSPECCIONANDO = "Inspeccionar Producto"
-ACCION_LLEGANDO = "Alcanzar Estante"
-ACCION_TRANSITANDO = "En Tránsito"
-ACCION_MANO_EN_ESTANTE = "Mano en Estante"
-ACCION_DEVOLVIENDO = "Devolver el producto"
-ACCION_ADQUIRIDO = "Producto Adquirido"
+# Vocabulario de dominio: vive en domain/constantes.py (el dominio no debe
+# depender de config) y se reexporta aqui para no romper a quien ya importaba
+# estos nombres desde app.config.
+from .domain.constantes import (  # noqa: E402,F401
+    COLOR_INSPECCIONANDO, COLOR_LLEGANDO, COLOR_TRANSITANDO, COLOR_ZONA,
+    COLOR_MANO_EN_ESTANTE, COLOR_DEVOLVIENDO, COLOR_ADQUIRIDO,
+    ACCION_INSPECCIONANDO, ACCION_LLEGANDO, ACCION_TRANSITANDO,
+    ACCION_MANO_EN_ESTANTE, ACCION_DEVOLVIENDO, ACCION_ADQUIRIDO,
+)
 
 # --- Gesto de interaccion (pick-up / put-back) -------------------------------
 IDX_MUNECA_IZQ = 9
@@ -238,6 +219,5 @@ HEATMAP_RADIO = 26
 HEATMAP_ALPHA = 0.45
 
 # --- Clasificacion de zonas calientes/frias ----------------------------------
-CLASIF_CALIENTE = "caliente"
-CLASIF_TEMPLADA = "templada"
-CLASIF_FRIA = "fria"
+# (tambien vocabulario de dominio; ver nota junto a las constantes de accion)
+from .domain.constantes import CLASIF_CALIENTE, CLASIF_TEMPLADA, CLASIF_FRIA  # noqa: E402,F401

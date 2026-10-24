@@ -1,9 +1,19 @@
-# Góndola Inteligente — HackTech 5.0
+# RetailVision Edge AI
+
+**Sistema de Visión Computacional para Space Management y Analítica de Tráfico en Retail**
+(anteriormente "Góndola Inteligente")
 
 > Sistema de visión computacional para retail que convierte el video de la tienda en decisiones de
 > *space management*: detecta tomas y devoluciones (pick-up / put-back), mide la permanencia y el
 > tráfico por zona, y recomienda cómo redistribuir la góndola. Todo con **privacidad por diseño**
 > (Ley 1581 de 2012) y procesamiento 100% local.
+
+- **Proyecto académico asociado:** Proyecto de Investigación / Semillero — RetailVision Edge AI
+- **Institución:** Universidad Santo Tomás, Seccional Tunja
+- **Docente asesor:** Sergio Arley Puerto Moreno
+- **Año de creación:** 2026
+- **Origen:** desarrollado originalmente para HackTech 5.0, en proceso de inscripción al Registro
+  de Software Académico de la institución.
 
 ## El problema
 
@@ -195,13 +205,17 @@ Resultados de referencia (RTX 2060, 720p): **~24 FPS** de proceso y **~4× marge
 
 ## Equipo
 
-**AlphaNode · RETAIL LAB — HackTech 5.0 · 2026**
+**RetailVision Edge AI — Universidad Santo Tomás, Seccional Tunja · 2026**
 
-- Andrés Felipe Galeano Téllez
-- Juan David Sandoval Bello
-- Sara Valentina Caicedo Duarte
-- Sarita Toloza Buitrago
-- Silvana Sofía Siza Soriano
-- Thomas Felipe Cepeda Mogollón
-- Wendy Mariana Vargas Ramírez
-- Yeikov Jared Ramos Sánchez
+Docente asesor: **Sergio Arley Puerto Moreno**
+
+Autores (estudiantes de pregrado, sin autoría externa):
+
+- Silvana Sofía Siza Soriano — silvana.siza@usantoto.edu.co
+- Yeikov Jared Ramos Sánchez — yeikov.ramos@usantoto.edu.co
+- Sarita Toloza Buitrago — sarita.toloza@usantoto.edu.co
+- Juan David Sandoval Bello — juan.sandovalb@usantoto.edu.co
+- Thomas Felipe Cepeda Mogollón — thomas.cepeda@usantoto.edu.co
+- Wendy Mariana Vargas Ramírez — wendy.vargas@usantoto.edu.co
+- Andrés Felipe Galeano Téllez — andres.galeano@usantoto.edu.co
+- Sara Valentina Caicedo Duarte — sara.caicedo@usantoto.edu.co

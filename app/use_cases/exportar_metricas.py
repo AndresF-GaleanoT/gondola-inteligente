@@ -20,16 +20,16 @@ def _deduplicar_eventos(eventos, claves_vistos):
     Devuelve los eventos que pasan el filtro y actualiza `claves_vistos`.
     """
     deduplicados = []
-    for e in eventos:
-        if e["tipo"] not in (ACCION_ADQUIRIDO, ACCION_DEVOLVIENDO):
-            deduplicados.append(e)
+    for evento in eventos:
+        if evento["tipo"] not in (ACCION_ADQUIRIDO, ACCION_DEVOLVIENDO):
+            deduplicados.append(evento)
             continue
-        clave = (e["tipo"], e["zona"] or "?")
-        ult = claves_vistos.get(clave)
-        if ult is not None and e["frame"] - ult <= VENTANA_DEDUPE_PICKUP:
+        clave = (evento["tipo"], evento["zona"] or "?")
+        frame_previo = claves_vistos.get(clave)
+        if frame_previo is not None and evento["frame"] - frame_previo <= VENTANA_DEDUPE_PICKUP:
             continue
-        claves_vistos[clave] = e["frame"]
-        deduplicados.append(e)
+        claves_vistos[clave] = evento["frame"]
+        deduplicados.append(evento)
     return deduplicados
 
 
@@ -43,30 +43,30 @@ def exportar_json_metricas(personas_estado, analizador, heatmap, fps):
     # mismo evento (misma zona en una ventana de frames) es el mismo evento real
     # dividido por el tracker; se conserva solo el primero. Asi el detalle por
     # persona y el conteo de zonas quedan coherentes.
-    _vistos = {}
-    for tid, datos in personas_estado.items():
+    eventos_vistos = {}
+    for id_persona, datos in personas_estado.items():
         permanencia_seg = max(0, datos["fin_estante"] - datos["inicio_estante"]) / fps
         viendo_seg = datos["tiempo_viendo"] / fps
 
         eventos_seg = [
-            {"tipo": e["tipo"], "frame": e["frame"],
-             "segundo": round(e["frame"] / fps, 2),
-             "zona": e["zona"]}
-            for e in _deduplicar_eventos(datos["eventos"], _vistos)
+            {"tipo": evento["tipo"], "frame": evento["frame"],
+             "segundo": round(evento["frame"] / fps, 2),
+             "zona": evento["zona"]}
+            for evento in _deduplicar_eventos(datos["eventos"], eventos_vistos)
         ]
 
         trayectoria = [
-            {"segundo": round(fr / fps, 2),
-             "x": x, "y": y,
-             "x_norm": round(x / cfg.W_VIDEO, 4), "y_norm": round(y / cfg.H_VIDEO, 4)}
-            for fr, x, y in datos["trayectoria"]
+            {"segundo": round(frame / fps, 2),
+             "x": px, "y": py,
+             "x_norm": round(px / cfg.W_VIDEO, 4), "y_norm": round(py / cfg.H_VIDEO, 4)}
+            for frame, px, py in datos["trayectoria"]
         ]
 
-        zonas_visitadas = sorted({e["zona"] for e in datos["eventos"]
-                                  if e["zona"]})
+        zonas_visitadas = sorted({evento["zona"] for evento in datos["eventos"]
+                                  if evento["zona"]})
 
         data_export.append({
-            "id_persona": tid,
+            "id_persona": id_persona,
             "permanencia_estante_seg": round(permanencia_seg, 2),
             "tiempo_viendo_seg": round(viendo_seg, 2),
             "interes_compra": datos["compro"],

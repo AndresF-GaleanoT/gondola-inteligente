@@ -12,13 +12,18 @@ from app.interfaces import api
 
 
 class ApiTest(unittest.TestCase):
+    """El estado del analisis (video pendiente de calibrar, ultimo analizado,
+    estado en curso) vive en api.orquestador (AnalysisOrchestrator), no en
+    globals del modulo: se resetea reasignando sus atributos en vez de
+    poke-ar `api._LISTO_ANALIZAR`/`api._ULTIMO_VIDEO_ANALIZADO`."""
+
     @classmethod
     def setUpClass(cls):
         cls.client = TestClient(api.app)
 
     def tearDown(self):
-        api._LISTO_ANALIZAR = None
-        api._ULTIMO_VIDEO_ANALIZADO = None
+        api.orquestador.listo_analizar = None
+        api.orquestador.ultimo_video_analizado = None
 
     def test_estado_publica_un_estado_explicito(self):
         respuesta = self.client.get("/api/estado")
@@ -49,7 +54,7 @@ class ApiTest(unittest.TestCase):
             with patch.object(api, "_ruta_guardado_video", return_value=destino), \
                     patch.object(api, "_extraer_preview", side_effect=lambda v: None), \
                     patch.object(api, "_limpiar_artefactos_previos"), \
-                    patch.object(api, "_iniciar_analisis") as iniciar:
+                    patch.object(api.orquestador, "iniciar_analisis") as iniciar:
                 respuesta = self.client.post(
                     "/api/video",
                     files={"archivo": ("video.mp4", b"video", "video/mp4")},
@@ -60,7 +65,7 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(cuerpo["video"], "video.mp4")
         self.assertIsNone(cuerpo["preview"])
         iniciar.assert_not_called()
-        self.assertIsNotNone(api._LISTO_ANALIZAR)
+        self.assertIsNotNone(api.orquestador.listo_analizar)
 
     def test_estado_publica_el_video_listo_para_analizar(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -68,7 +73,7 @@ class ApiTest(unittest.TestCase):
             preview = Path(tmp) / "pv.jpg"
             video.write_bytes(b"v")
             preview.write_bytes(b"p")
-            api._LISTO_ANALIZAR = {"video": video, "preview": preview}
+            api.orquestador.listo_analizar = {"video": video, "preview": preview}
             respuesta = self.client.get("/api/estado")
         self.assertEqual(respuesta.status_code, 200)
         cuerpo = respuesta.json()
@@ -80,7 +85,7 @@ class ApiTest(unittest.TestCase):
             video = Path(tmp) / "pend.mp4"
             preview = Path(tmp) / "pv.jpg"
             video.write_bytes(b"v")
-            api._LISTO_ANALIZAR = {"video": video, "preview": preview}
+            api.orquestador.listo_analizar = {"video": video, "preview": preview}
             respuesta = self.client.get("/api/estado")
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(respuesta.json()["listo_para_analizar"],
@@ -90,33 +95,35 @@ class ApiTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             video = Path(tmp) / "pend.mp4"
             video.write_bytes(b"v")
-            api._LISTO_ANALIZAR = {"video": video, "preview": None}
+            api.orquestador.listo_analizar = {"video": video, "preview": None}
             estado = {"run_id": "prueba-2"}
-            with patch.object(api, "_iniciar_analisis", return_value=estado) as iniciar:
+            with patch.object(api.orquestador, "iniciar_analisis",
+                              return_value=estado) as iniciar:
                 respuesta = self.client.post("/api/analizar")
         self.assertEqual(respuesta.status_code, 202)
         self.assertEqual(respuesta.json()["run_id"], "prueba-2")
-        iniciar.assert_called_once_with(video, eliminar_al_final=True)
-        self.assertIsNone(api._LISTO_ANALIZAR)
+        iniciar.assert_called_once_with(video)
+        self.assertIsNone(api.orquestador.listo_analizar)
 
     def test_analizar_reusa_el_ultimo_video_analizado(self):
         with tempfile.TemporaryDirectory() as tmp:
             video = Path(tmp) / "previo.mp4"
             video.write_bytes(b"v")
-            api._ULTIMO_VIDEO_ANALIZADO = video
+            api.orquestador.ultimo_video_analizado = video
             estado = {"run_id": "prueba-3"}
-            with patch.object(api, "_iniciar_analisis", return_value=estado) as iniciar:
+            with patch.object(api.orquestador, "iniciar_analisis",
+                              return_value=estado) as iniciar:
                 respuesta = self.client.post("/api/analizar")
         self.assertEqual(respuesta.status_code, 202)
-        iniciar.assert_called_once_with(video, eliminar_al_final=False)
+        iniciar.assert_called_once_with(video)
 
     def test_guardar_zonas_reinicia_el_analisis_si_hay_video_previo(self):
         with tempfile.TemporaryDirectory() as tmp:
             video = Path(tmp) / "previo.mp4"
             video.write_bytes(b"v")
-            api._ULTIMO_VIDEO_ANALIZADO = video
+            api.orquestador.ultimo_video_analizado = video
             zonas = self.client.get("/api/zonas").json()["zonas"]
-            with patch.object(api, "_reanalizar_si_corresponde",
+            with patch.object(api.orquestador, "reanalizar_si_corresponde",
                               return_value=True) as re:
                 respuesta = self.client.put("/api/zonas", json={"zonas": zonas})
         self.assertEqual(respuesta.status_code, 200)
@@ -129,8 +136,8 @@ class ApiTest(unittest.TestCase):
             previo = Path(tmp) / "previo.mp4"
             video.write_bytes(b"v")
             previo.write_bytes(b"v")
-            api._LISTO_ANALIZAR = {"video": video, "preview": None}
-            api._ULTIMO_VIDEO_ANALIZADO = previo
+            api.orquestador.listo_analizar = {"video": video, "preview": None}
+            api.orquestador.ultimo_video_analizado = previo
             zonas = self.client.get("/api/zonas").json()["zonas"]
             respuesta = self.client.put("/api/zonas", json={"zonas": zonas})
         self.assertEqual(respuesta.status_code, 200)

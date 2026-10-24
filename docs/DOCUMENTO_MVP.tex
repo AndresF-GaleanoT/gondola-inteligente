@@ -1,0 +1,352 @@
+\documentclass[11pt,a4paper]{report}
+
+% ============================================================================
+% RetailVision Edge AI — Documento de MVP (Producto Mínimo Viable)
+% Universidad Santo Tomás, Seccional Tunja
+% ============================================================================
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[spanish,es-noindentfirst]{babel}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{hyperref}
+\usepackage{array}
+\usepackage{colortbl}
+\usepackage{microtype}
+\usepackage{amssymb}
+\usepackage{textcomp}
+\sloppy
+
+% --- Paleta (coherente con el dashboard) ------------------------------------
+\definecolor{rvAccent}{HTML}{C76A00}
+\definecolor{rvAccentDark}{HTML}{8A4600}
+\definecolor{rvInk}{HTML}{2C3242}
+\definecolor{rvMuted}{HTML}{5B6478}
+\definecolor{rvLine}{HTML}{CCD4E2}
+\definecolor{rvCodeBg}{HTML}{F2F3F6}
+\definecolor{rvGreen}{HTML}{1F9D66}
+\definecolor{rvRed}{HTML}{D33B3B}
+
+\titleformat{\chapter}[display]
+  {\normalfont\bfseries\color{rvInk}}
+  {\color{rvAccent}\Large\chaptertitlename\ \thechapter}
+  {6pt}{\Huge}
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{rvInk}}{\thesection}{0.6em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{rvAccentDark}}{\thesubsection}{0.6em}{}
+
+\setlength{\headheight}{14.5pt}
+\addtolength{\topmargin}{-0.5pt}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\fancyhead[L]{\footnotesize\color{rvMuted} RetailVision Edge AI}
+\fancyhead[R]{\footnotesize\color{rvMuted} \leftmark}
+\renewcommand{\chaptermark}[1]{\markboth{#1}{}}
+\fancyfoot[C]{\small\color{rvMuted} \thepage}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=rvAccentDark,
+  urlcolor=rvAccentDark,
+  citecolor=rvAccentDark,
+  pdftitle={RetailVision Edge AI -- Documento de MVP},
+  pdfauthor={Equipo RetailVision Edge AI -- Universidad Santo Tomas, Seccional Tunja},
+}
+
+\newcommand{\rvnota}[1]{%
+  \par\noindent\fcolorbox{rvAccent}{rvCodeBg}{%
+    \parbox{0.95\linewidth}{\small \textbf{\color{rvAccentDark}Nota:} #1}%
+  }\par\vspace{4pt}
+}
+
+\newcommand{\rvcheck}{\textcolor{rvGreen}{\textbf{\checkmark}}}
+\newcommand{\rvcross}{\textcolor{rvRed}{\textbf{\texttimes}}}
+
+\setlist[itemize]{leftmargin=1.4em}
+\setlist[enumerate]{leftmargin=1.6em}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\Huge\bfseries\color{rvAccent} RetailVision Edge AI\par}
+\vspace{0.4cm}
+{\Large\color{rvInk} Documento de MVP (Producto Mínimo Viable)\par}
+\vspace{0.3cm}
+{\large\color{rvMuted} Sistema de Visión Computacional para \textit{Space Management}\\
+y Analítica de Tráfico en Retail\par}
+\vspace{2.2cm}
+
+{\large\color{rvInk}\textbf{Universidad Santo Tomás, Seccional Tunja}\par}
+\vspace{0.2cm}
+{\normalsize\color{rvMuted} Proyecto de Investigación / Semillero\par}
+\vspace{0.15cm}
+{\normalsize\color{rvMuted} Docente asesor: Sergio Arley Puerto Moreno\par}
+
+\vspace{2.2cm}
+{\normalsize\color{rvInk}\textbf{Equipo}\par}
+\vspace{0.3cm}
+\begin{tabular}{l}
+Silvana Sofía Siza Soriano \\
+Yeikov Jared Ramos Sánchez \\
+Sarita Toloza Buitrago \\
+Juan David Sandoval Bello \\
+Thomas Felipe Cepeda Mogollón \\
+Wendy Mariana Vargas Ramírez \\
+Andrés Felipe Galeano Téllez \\
+Sara Valentina Caicedo Duarte \\
+\end{tabular}
+
+\vfill
+{\large\color{rvMuted} 2026\par}
+\end{titlepage}
+
+\tableofcontents
+\clearpage
+
+% ============================================================================
+\chapter{Resumen ejecutivo}
+% ============================================================================
+
+RetailVision Edge AI es el \textbf{Producto Mínimo Viable (MVP)} de un sistema de visión
+computacional que convierte el video de las cámaras de seguridad de una tienda en decisiones de
+\textit{space management}: detecta tomas y devoluciones de producto, mide el tráfico y la
+permanencia por zona, y genera recomendaciones de redistribución de góndola, todo con
+\textbf{privacidad por diseño} y procesamiento 100\,\% local.
+
+Este documento describe el \textbf{problema que resuelve}, la \textbf{propuesta de valor}, el
+\textbf{alcance exacto del MVP} (qué está construido y validado hoy, y qué queda fuera de esta
+primera versión), la \textbf{evidencia de que funciona} (pruebas automatizadas y métricas de
+rendimiento) y la \textbf{hoja de ruta} hacia una versión productiva.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{>{\raggedright\arraybackslash}p{4.2cm} >{\raggedright\arraybackslash}p{9.8cm}}
+\toprule
+\rowcolor{rvCodeBg}\textbf{Estado del MVP} & \textbf{Funcional y validado} \\
+\midrule
+Pipeline de detección & \rvcheck\ Operativo (YOLO-pose + detector de producto + tracking) \\
+Dashboard web & \rvcheck\ 5 vistas operativas + editor de zonas \\
+API REST & \rvcheck\ 10 \textit{endpoints} documentados \\
+Privacidad por diseño & \rvcheck\ Auditada (0 hallazgos en \texttt{qa\_privacidad.py}) \\
+Pruebas automatizadas & \rvcheck\ 51 pruebas de backend + 5 de frontend, 100\,\% en verde \\
+Despliegue en la nube & \rvcross\ Fuera de alcance de este MVP (ver hoja de ruta) \\
+Multi-tienda / multi-tenant & \rvcross\ Fuera de alcance de este MVP \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ============================================================================
+\chapter{El problema}
+% ============================================================================
+
+\section{Contexto}
+
+En un punto de venta físico, las decisiones de \textit{space management} (qué producto va en qué
+góndola, con cuánto espacio) se toman hoy mayoritariamente \textbf{a ciegas}: con base en ventas
+históricas y criterio del mercaderista, pero sin visibilidad de lo que ocurre \textbf{frente a la
+góndola} en el momento de la decisión de compra.
+
+\section{Lo que no se puede medir hoy, sin este sistema}
+
+\begin{itemize}
+  \item Cuántas personas se detienen frente a un estante y \textbf{no} compran.
+  \item Cuántas \textbf{toman} un producto, lo consideran y lo \textbf{devuelven} (una señal de
+    interés real que las ventas por sí solas no capturan).
+  \item Qué zonas de la tienda concentran tráfico y cuáles pasan desapercibidas.
+  \item El efecto de un cambio de planograma, sin esperar semanas de datos de venta.
+\end{itemize}
+
+\section{Por qué las soluciones existentes no bastan}
+
+Las cámaras de conteo tradicionales miden tráfico agregado, no \textbf{interacción con el
+producto}. Las soluciones de \textit{computer vision} de nivel empresarial que sí miden
+interacción suelen requerir infraestructura en la nube, licenciamiento costoso, o procesar video
+con reconocimiento facial --- lo que introduce un riesgo de cumplimiento normativo
+(Ley 1581 de 2012 en Colombia) que muchas tiendas pequeñas y medianas no están dispuestas a asumir.
+
+% ============================================================================
+\chapter{Propuesta de valor}
+% ============================================================================
+
+\begin{center}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{>{\raggedright\arraybackslash}p{4.6cm} >{\raggedright\arraybackslash}p{9.4cm}}
+\toprule
+\rowcolor{rvCodeBg}\textbf{Para} & Tiendas y marcas de retail que necesitan optimizar el espacio
+de góndola sin invertir en infraestructura de nube ni comprometer datos personales. \\
+\textbf{Que necesitan} & Visibilidad objetiva de la interacción cliente-producto frente al
+estante. \\
+\textbf{RetailVision Edge AI} & Es un sistema de visión computacional \textit{edge} (local). \\
+\textbf{Que} & Detecta tomas, devoluciones, tráfico y permanencia por zona, y recomienda
+redistribuciones de planograma. \\
+\textbf{A diferencia de} & Los conteos de tráfico genéricos o las soluciones de reconocimiento
+facial en la nube. \\
+\textbf{Nuestro sistema} & No identifica a nadie, procesa todo localmente y su motor de
+recomendación es 100\,\% trazable (reglas sobre datos observados, no una caja negra). \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ============================================================================
+\chapter{Alcance del MVP}
+% ============================================================================
+
+\section{Funcionalidades incluidas (construidas y validadas)}
+
+\begin{enumerate}
+  \item \textbf{Ingesta de video}: subida desde el navegador, validación de formato y tamaño,
+    extracción de vista previa anonimizada.
+  \item \textbf{Calibración de zonas}: editor gráfico de polígonos (cuerpo + área de agarro) por
+    góndola, con validación geométrica en vivo.
+  \item \textbf{Pipeline de detección}: pose + tracking de personas (YOLO-pose + ByteTrack) y
+    detección de producto en mano (modelo \textit{fine-tuneado}).
+  \item \textbf{Motor de comportamiento}: máquina de estados que clasifica a cada persona
+    (tránsito, llegada, inspección, mano en estante, toma, devolución).
+  \item \textbf{Analítica de zonas}: heatmap de tráfico y clasificación caliente / templada /
+    fría por góndola.
+  \item \textbf{Agente de recomendación determinista}: texto accionable por zona y propuesta de
+    reparto de \textit{facing} entre la zona más caliente y la más fría.
+  \item \textbf{Dashboard web}: 5 vistas (Lectura general, Analítica, Plano de tienda,
+    Evidencias, Informe) y un informe imprimible.
+  \item \textbf{Privacidad por diseño}: anonimización de rostros dentro del propio pipeline,
+    auditada automáticamente.
+  \item \textbf{Accesibilidad}: panel de preferencias (contraste, tamaño de texto, lector de
+    pantalla, navegación por teclado).
+\end{enumerate}
+
+\section{Explícitamente fuera de alcance de este MVP}
+
+\begin{itemize}
+  \item \textbf{Despliegue multi-tienda en la nube} con autenticación y aislamiento por cliente
+    (\textit{multi-tenancy}). El MVP corre como instalación local de un solo punto de venta.
+  \item \textbf{Integración directa con sistemas de punto de venta (POS)} o inventario para
+    cruzar interacción con ventas reales.
+  \item \textbf{Procesamiento de cámaras en vivo (streaming)}: el MVP procesa video ya grabado,
+    no una transmisión continua.
+  \item \textbf{Modelos de detección específicos por categoría de producto} más allá del dataset
+    de referencia usado para el \textit{fine-tuning} actual.
+  \item \textbf{Panel de administración de usuarios y roles} (el MVP no tiene autenticación:
+    está pensado para operación interna de un equipo, no para exposición pública).
+\end{itemize}
+
+\rvnota{Estas exclusiones son decisiones deliberadas de alcance, no limitaciones técnicas
+irresolubles: la arquitectura por capas del sistema (ver Manual Técnico, capítulo de
+Arquitectura) fue diseñada precisamente para permitir añadir estas capacidades --- por ejemplo,
+un repositorio de zonas en base de datos en vez de JSON, o un detector de personas distinto ---
+sin reescribir el dominio.}
+
+% ============================================================================
+\chapter{Validación: evidencia de que el MVP funciona}
+% ============================================================================
+
+\section{Pruebas automatizadas}
+
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{5.4cm} >{\raggedright\arraybackslash}p{3cm} >{\raggedright\arraybackslash}p{4.6cm}}
+\toprule
+\rowcolor{rvCodeBg}\textbf{Suite} & \textbf{Resultado} & \textbf{Qué cubre} \\
+\midrule
+Backend (\texttt{pytest}) & \rvcheck\ 51 / 51 & Dominio, orquestación, API \\
+Frontend (\texttt{node:test}) & \rvcheck\ 5 / 5 & Lógica de tasas, zonas, Sankey \\
+Auditoría de privacidad & \rvcheck\ 0 hallazgos & Ausencia de datos biométricos en salidas \\
+Invariantes de métricas & \rvcheck\ OK & Embudo, heatmap, recomendaciones coherentes \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Rendimiento}
+
+Medido sobre GPU NVIDIA RTX 2060, video 720p: \textbf{\textasciitilde 24 FPS} de procesamiento,
+es decir, un margen de \textbf{\textasciitilde 4$\times$} respecto al tiempo real (un video de un
+minuto se procesa en \textasciitilde 15 segundos). Sin GPU, el sistema sigue siendo funcional en
+CPU, a un FPS menor, sin cambios de código.
+
+\section{Exactitud del embudo de interacción}
+
+La detección de tomas y devoluciones se valida contra un \textit{ground truth} anotado
+manualmente sobre el video de referencia, con precisión, \textit{recall} y F1 calculados por
+\texttt{app/interfaces/validar\_embudo.py}, incluyendo un chequeo de coherencia automático
+(ningún estante puede registrar tomas sin visitas, la tasa de rechazo no puede superar el
+100\,\%, etc.).
+
+% ============================================================================
+\chapter{Cumplimiento normativo}
+% ============================================================================
+
+El MVP fue diseñado desde el primer día bajo el principio de \textbf{privacidad por diseño}, en
+cumplimiento de la \textbf{Ley 1581 de 2012} (Colombia): anonimización de rostros antes de
+cualquier render o persistencia, ausencia de reconocimiento facial y de identificadores
+persistentes, y procesamiento 100\,\% local. El detalle técnico de esta garantía se documenta en
+el Manual Técnico, capítulo de Privacidad.
+
+% ============================================================================
+\chapter{Limitaciones conocidas}
+% ============================================================================
+
+\begin{itemize}
+  \item La precisión de la detección de producto-en-mano depende del dataset de
+    \textit{fine-tuning} usado; productos muy distintos a los del dataset de referencia pueden
+    requerir reentrenamiento.
+  \item El sistema procesa \textbf{un análisis a la vez} por instancia (no hay cola de trabajos
+    concurrentes en esta versión).
+  \item Las zonas se calibran manualmente por video/cámara; un cambio de ángulo de cámara exige
+    recalibrar.
+  \item No hay autenticación de usuarios: el acceso al panel se asume restringido a la red
+    interna del equipo que lo opera.
+\end{itemize}
+
+% ============================================================================
+\chapter{Hoja de ruta}
+% ============================================================================
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{>{\raggedright\arraybackslash}p{3.4cm} >{\raggedright\arraybackslash}p{10cm}}
+\toprule
+\rowcolor{rvCodeBg}\textbf{Horizonte} & \textbf{Próximos pasos propuestos} \\
+\midrule
+Corto plazo & Despliegue en un entorno de nube controlado para piloto con un cliente real;
+ampliación del \textit{ground truth} de validación con más escenarios de tienda. \\
+Mediano plazo & Autenticación básica y soporte multi-cámara por tienda; cola de análisis
+concurrentes. \\
+Largo plazo & \textit{Multi-tenancy} para operar varias tiendas/cadenas desde una sola
+instalación; integración con sistemas de punto de venta para cruzar interacción con ventas
+reales. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ============================================================================
+\chapter{Conclusión}
+% ============================================================================
+
+RetailVision Edge AI demuestra, con un pipeline funcional, validado por pruebas automatizadas y
+una auditoría de privacidad, que es posible medir la interacción real entre clientes y productos
+en una góndola \textbf{sin} comprometer datos personales ni depender de infraestructura en la
+nube. Este MVP establece la base arquitectónica (capas limpias, puertos y adaptadores) sobre la
+que pueden construirse, sin reescritura, las capacidades de la hoja de ruta hacia una versión
+productiva y multi-tienda.
+
+\vspace{1cm}
+\textbf{Equipo:} Silvana Sofía Siza Soriano, Yeikov Jared Ramos Sánchez, Sarita Toloza Buitrago,
+Juan David Sandoval Bello, Thomas Felipe Cepeda Mogollón, Wendy Mariana Vargas Ramírez, Andrés
+Felipe Galeano Téllez, Sara Valentina Caicedo Duarte.
+
+\textbf{Docente asesor:} Sergio Arley Puerto Moreno --- Universidad Santo Tomás, Seccional
+Tunja.
+
+\end{document}

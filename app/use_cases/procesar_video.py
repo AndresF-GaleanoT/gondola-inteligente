@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Protocol
 
 import cv2
 import numpy as np
@@ -14,11 +15,22 @@ from .. import config as cfg
 from ..config import (COLOR_ZONA, MOSTRAR_HEATMAP, MOSTRAR_RESUMEN,
                       PROCESAR_CADA_N, VIDEO, VISION_FPS_OBJETIVO)
 from ..domain.analisis import HeatmapTrafico, AnalizadorZonas
+from ..domain.detector_objetos import DetectorDeObjetos
+from ..domain.detector_personas import DetectorDePersonas
 from ..domain.persona import procesar_personas
 from ..infrastructure.anonimizacion import _cajas_cabeza_rastreadas, anonimizar
 from ..infrastructure.dibujo import poner_texto
 from ..infrastructure.vision import DetectorPoseYObjetos, CapturaVideo
 from .exportar_metricas import exportar_json_metricas
+
+
+class DetectorDeEscena(DetectorDePersonas, DetectorDeObjetos, Protocol):
+    """Puerto combinado que necesita este caso de uso: deteccion+tracking de
+    personas Y deteccion de objetos en posesion sobre el mismo fotograma.
+    `infrastructure/vision.py:DetectorPoseYObjetos` implementa ambos (tipado
+    estructural: no hace falta heredar de este Protocol, basta con tener los
+    metodos). Un test puede pasar cualquier objeto con esos dos metodos, sin
+    cargar YOLO de verdad."""
 
 
 def _ffmpeg():
@@ -30,23 +42,23 @@ def _ffmpeg():
     from shutil import which
     try:
         import imageio_ffmpeg
-        ruta = imageio_ffmpeg.get_ffmpeg_exe()
-        if Path(ruta).is_file():
-            return str(ruta)
+        ruta_empaquetada = imageio_ffmpeg.get_ffmpeg_exe()
+        if Path(ruta_empaquetada).is_file():
+            return str(ruta_empaquetada)
     except (ImportError, RuntimeError, OSError):
         pass
     for candidato in ("ffmpeg", str(Path(sys.executable).parent / "ffmpeg"),
                       str(Path(sys.executable).parents[1] / "Library" / "bin"
                           / "ffmpeg")):
-        ruta = which(candidato) or (candidato
+        ruta_encontrada = which(candidato) or (candidato
                                     if Path(candidato).is_file() else None)
-        if ruta:
-            return ruta
+        if ruta_encontrada:
+            return ruta_encontrada
     return None
 
 
-def _procesar_frame(detector, frame, fi, personas_estado, analizador, zonas,
-                    historial, heatmap=None):
+def _procesar_frame(detector: DetectorDeEscena, frame, fi, personas_estado,
+                    analizador, zonas, historial, heatmap=None):
     """Deteccion + actualizacion de estado de un frame procesado.
 
     Devuelve (results, etiquetas). Ordena el tracking de personas ANTES que el
@@ -89,7 +101,7 @@ def procesar_video(mostrar_ventana=True, ruta_video=None, emitir_marco=None,
     junto a la carpeta; el dashboard los reproduce como secuencia animada
     ("vision de las gondolas").
     """
-    detector = DetectorPoseYObjetos()
+    detector: DetectorDeEscena = DetectorPoseYObjetos()
     cap = CapturaVideo(ruta_video=ruta_video or VIDEO)
 
     fps = cap.fps
@@ -160,11 +172,11 @@ def procesar_video(mostrar_ventana=True, ruta_video=None, emitir_marco=None,
 
                 marco = results[0].plot(img=frame, kpt_line=False, kpt_radius=0)
 
-                for z in zonas:
-                    pts = np.array(z["poligono"], dtype=np.int32)
-                    cv2.polylines(marco, [pts], True, COLOR_ZONA, 2)
-                    cv2.putText(marco, z["id"], (int(pts[:, 0].min()) + 4,
-                                                  int(pts[:, 1].min()) + 16),
+                for zona in zonas:
+                    vertices = np.array(zona["poligono"], dtype=np.int32)
+                    cv2.polylines(marco, [vertices], True, COLOR_ZONA, 2)
+                    cv2.putText(marco, zona["id"], (int(vertices[:, 0].min()) + 4,
+                                                  int(vertices[:, 1].min()) + 16),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.45, COLOR_ZONA, 1)
 
                 for pos, texto, color in etiquetas:
@@ -228,12 +240,12 @@ def procesar_video(mostrar_ventana=True, ruta_video=None, emitir_marco=None,
             tmp = Path(guardar_frames) / "_video_tmp"
             try:
                 tmp.mkdir(parents=True, exist_ok=True)
-                for i, nombre in enumerate(frames_guardados, start=1):
+                for orden, nombre in enumerate(frames_guardados, start=1):
                     shutil.copy2(Path(guardar_frames) / nombre,
-                                 tmp / ("f_%08d.jpg" % i))
+                                 tmp / ("f_%08d.jpg" % orden))
                 ejecutable = _ffmpeg()
                 if ejecutable is not None:
-                    proc = subprocess.run(
+                    proceso = subprocess.run(
                         [ejecutable, "-y", "-loglevel", "error",
                          "-framerate", str(fps / paso_guardado),
                          "-i", str(tmp / "f_%08d.jpg"),
@@ -241,7 +253,7 @@ def procesar_video(mostrar_ventana=True, ruta_video=None, emitir_marco=None,
                          "-crf", "23", "-pix_fmt", "yuv420p",
                          "-movflags", "+faststart", str(ruta_video)],
                         capture_output=True, timeout=300)
-                    if proc.returncode == 0 and ruta_video.exists() \
+                    if proceso.returncode == 0 and ruta_video.exists() \
                             and ruta_video.stat().st_size > 0:
                         indice["video"] = nombre_video
                     else:

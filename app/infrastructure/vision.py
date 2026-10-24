@@ -9,7 +9,13 @@ from ..config import (MODELO_POSE, MODELO_OBJETOS, TRACKER, VIDEO,
 
 
 class DetectorPoseYObjetos:
-    """Carga los dos modelos YOLO (pose de personas + estado de producto)."""
+    """Carga los dos modelos YOLO (pose de personas + estado de producto).
+
+    Implementa los puertos domain.detector_personas.DetectorDePersonas y
+    domain.detector_objetos.DetectorDeObjetos (tipado estructural: basta con
+    tener `rastrear_personas`/`detectar_objetos`, no hace falta heredar de
+    ellos). use_cases/procesar_video.py depende de ese contrato combinado
+    (DetectorDeEscena), no de esta clase concreta."""
 
     def __init__(self):
         from ultralytics import YOLO
@@ -27,17 +33,17 @@ class DetectorPoseYObjetos:
 
     def detectar_objetos(self, frame):
         """Devuelve cajas de objetos en posesion real (filtradas por clase)."""
-        res_objs = self.model_objs(frame, conf=CONF_OBJETOS, verbose=False)
+        resultado_objs = self.model_objs(frame, conf=CONF_OBJETOS, verbose=False)
         cajas_objetos = np.array([])
-        if res_objs[0].boxes is not None and len(res_objs[0].boxes):
-            b = res_objs[0].boxes
-            xyxy = b.xyxy.cpu().numpy()
-            cls = b.cls.cpu().numpy().astype(int)
+        if resultado_objs[0].boxes is not None and len(resultado_objs[0].boxes):
+            cajas_detectadas = resultado_objs[0].boxes
+            coords_xyxy = cajas_detectadas.xyxy.cpu().numpy()
+            clases = cajas_detectadas.cls.cpu().numpy().astype(int)
             if self.es_posesion:
-                keep = [c in CLASES_POSESION for c in cls]
+                mascara = [c in CLASES_POSESION for c in clases]
             else:
-                keep = [c != 0 for c in cls]
-            cajas_objetos = xyxy[keep]
+                mascara = [c != 0 for c in clases]
+            cajas_objetos = coords_xyxy[mascara]
         return cajas_objetos
 
     def rastrear_personas(self, frame):

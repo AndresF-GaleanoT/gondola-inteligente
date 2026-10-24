@@ -4,13 +4,13 @@
 import numpy as np
 
 from .. import config
-from ..config import (ACCION_ADQUIRIDO, ACCION_DEVOLVIENDO,
+from .constantes import (ACCION_ADQUIRIDO, ACCION_DEVOLVIENDO,
                       ACCION_INSPECCIONANDO, ACCION_LLEGANDO,
                       ACCION_MANO_EN_ESTANTE, ACCION_TRANSITANDO,
                       COLOR_ADQUIRIDO, COLOR_DEVOLVIENDO,
                       COLOR_INSPECCIONANDO, COLOR_LLEGANDO,
-                      COLOR_MANO_EN_ESTANTE, COLOR_TRANSITANDO,
-                      IDX_MUNECA_IZQ, IDX_MUNECA_DER, CONF_MANO,
+                      COLOR_MANO_EN_ESTANTE, COLOR_TRANSITANDO)
+from ..config import (IDX_MUNECA_IZQ, IDX_MUNECA_DER, CONF_MANO,
                       MANO_RADIO, MANO_OBJ_TOLERANCIA,
                       MANO_OBJ_TOLERANCIA_RELAJADA,
                       MANO_EN_ZONA_PARA_RETIRAR,
@@ -70,30 +70,33 @@ def nueva_persona(centro, fi=0):
 
 
 def registrar_evento(datos, tipo, fi, zona_id):
-    if (datos["eventos"] and
-            datos["eventos"][-1]["tipo"] == tipo and
-            datos["eventos"][-1]["frame"] >= fi - 1):
+    ultimo_evento_repetido = (
+        datos["eventos"]
+        and datos["eventos"][-1]["tipo"] == tipo
+        and datos["eventos"][-1]["frame"] >= fi - 1
+    )
+    if ultimo_evento_repetido:
         return
     datos["eventos"].append({"tipo": tipo, "frame": fi, "zona": zona_id})
 
 
 def solapamiento_cajas(caja1, caja2):
-    x1_1, y1_1, x2_1, y2_1 = caja1
-    x1_2, y1_2, x2_2, y2_2 = caja2
-    xi1 = max(x1_1, x1_2)
-    yi1 = max(y1_1, y1_2)
-    xi2 = min(x2_1, x2_2)
-    yi2 = min(y2_1, y2_2)
-    return not (xi2 < xi1 or yi2 < yi1)
+    izq1, arriba1, der1, abajo1 = caja1
+    izq2, arriba2, der2, abajo2 = caja2
+    inter_izq = max(izq1, izq2)
+    inter_arriba = max(arriba1, arriba2)
+    inter_der = min(der1, der2)
+    inter_abajo = min(abajo1, abajo2)
+    return not (inter_der < inter_izq or inter_abajo < inter_arriba)
 
 
 def _dist_muneca_a_bbox(muneca, bbox):
     """Distancia del punto muneca al rectangulo del objeto (0 si esta dentro)."""
-    x, y = muneca
-    x1, y1, x2, y2 = bbox
-    dx = max(x1 - x, 0, x - x2)
-    dy = max(y1 - y, 0, y - y2)
-    return float((dx ** 2 + dy ** 2) ** 0.5)
+    px, py = muneca
+    izq, arriba, der, abajo = bbox
+    delta_x = max(izq - px, 0, px - der)
+    delta_y = max(arriba - py, 0, py - abajo)
+    return float((delta_x ** 2 + delta_y ** 2) ** 0.5)
 
 
 def detectar_posesion_objeto(kps, cajas_objetos):
@@ -110,13 +113,13 @@ def detectar_posesion_objeto(kps, cajas_objetos):
     radio = MANO_RADIO * escala
     tolerancia = MANO_OBJ_TOLERANCIA * escala
     for idx in (IDX_MUNECA_IZQ, IDX_MUNECA_DER):
-        x, y, conf = kps[idx]
+        px, py, conf = kps[idx]
         if conf >= CONF_MANO:
-            caja_mano = (x - radio, y - radio, x + radio, y + radio)
-            for obj_box in cajas_objetos:
-                if solapamiento_cajas(caja_mano, obj_box):
+            caja_mano = (px - radio, py - radio, px + radio, py + radio)
+            for caja_obj in cajas_objetos:
+                if solapamiento_cajas(caja_mano, caja_obj):
                     return True
-                if _dist_muneca_a_bbox((x, y), obj_box) <= tolerancia:
+                if _dist_muneca_a_bbox((px, py), caja_obj) <= tolerancia:
                     return True
     return False
 
@@ -132,10 +135,10 @@ def detectar_posesion_relajada(kps, cajas_objetos):
     escala = config.W_VIDEO / config.ANCHO_REF_ZONAS if config.W_VIDEO > 1 else 1.0
     tolerancia = MANO_OBJ_TOLERANCIA_RELAJADA * escala
     for idx in (IDX_MUNECA_IZQ, IDX_MUNECA_DER):
-        x, y, conf = kps[idx]
+        px, py, conf = kps[idx]
         if conf >= CONF_MANO:
-            for obj_box in cajas_objetos:
-                if _dist_muneca_a_bbox((x, y), obj_box) <= tolerancia:
+            for caja_obj in cajas_objetos:
+                if _dist_muneca_a_bbox((px, py), caja_obj) <= tolerancia:
                     return True
     return False
 
@@ -159,15 +162,15 @@ def clasificar(datos, centro, zona, fi, tiene_objeto):
         return ACCION_ADQUIRIDO, COLOR_ADQUIRIDO
 
     datos["zona_actual"] = zona["id"]
-    ultimo_x, ultimo_y = datos["ultimo_centro"]
-    movimiento = abs(centro[0] - ultimo_x) + abs(centro[1] - ultimo_y)
+    centro_prev_x, centro_prev_y = datos["ultimo_centro"]
+    movimiento = abs(centro[0] - centro_prev_x) + abs(centro[1] - centro_prev_y)
 
     if datos["accion"] == ACCION_INSPECCIONANDO:
         datos["frames_quieto"] = 0 if movimiento > SALIDA_VIENDO \
             else datos["frames_quieto"] + 1
     else:
-        quieto = movimiento < UMBRAL_QUIETO
-        datos["frames_quieto"] = datos["frames_quieto"] + 1 if quieto else 0
+        esta_quieto = movimiento < UMBRAL_QUIETO
+        datos["frames_quieto"] = datos["frames_quieto"] + 1 if esta_quieto else 0
 
     if datos.get("retirado", False):
         # La toma se confirma cuando la mano sale del area de agarro con el
@@ -192,8 +195,8 @@ def clasificar(datos, centro, zona, fi, tiene_objeto):
 
 
 def centro_de_caja(caja):
-    x1, y1, x2, y2 = caja
-    return (int((x1 + x2) / 2), int((y1 + y2) / 2))
+    izq, arriba, der, abajo = caja
+    return (int((izq + der) / 2), int((arriba + abajo) / 2))
 
 
 def zona_de_visita(centro, zonas):
@@ -212,15 +215,15 @@ def zona_de_visita(centro, zonas):
 def suavizar(puntos, previo, factor):
     if previo is None:
         return puntos
-    return tuple(int(factor * n + (1 - factor) * p)
-                 for n, p in zip(puntos, previo))
+    return tuple(int(factor * nuevo + (1 - factor) * anterior)
+                 for nuevo, anterior in zip(puntos, previo))
 
 
 def muneca_confiable(kps, idx):
-    x, y, conf = kps[idx]
+    px, py, conf = kps[idx]
     if conf < CONF_MANO:
         return None
-    return (float(x), float(y))
+    return (float(px), float(py))
 
 
 def detectar_interaccion_manos(datos, kps, fi, zona, tiene_objeto,
@@ -253,11 +256,11 @@ def detectar_interaccion_manos(datos, kps, fi, zona, tiene_objeto,
     ]
     datos["posesion_prev"] = bool(posesion)
 
-    izq = muneca_confiable(kps, IDX_MUNECA_IZQ)
-    der = muneca_confiable(kps, IDX_MUNECA_DER)
+    muneca_izq = muneca_confiable(kps, IDX_MUNECA_IZQ)
+    muneca_der = muneca_confiable(kps, IDX_MUNECA_DER)
     mano_en_agarro = bool(zona) and any(
         p is not None and punto_en_zona(*p, zona["agarro"])
-        for p in (izq, der)
+        for p in (muneca_izq, muneca_der)
     )
 
     entrando_al_agarro = mano_en_agarro and not datos.get("mano_dentro", False)
@@ -424,8 +427,8 @@ def procesar_personas(results, cajas_objetos, personas_estado, analizador, fi,
                  and len(results[0].keypoints) else None)
     zonas = zonas if zonas is not None else ZONAS
 
-    for i, caja in enumerate(cajas.xyxy.cpu().numpy()):
-        tid = int(cajas.id[i])
+    for indice, caja in enumerate(cajas.xyxy.cpu().numpy()):
+        tid = int(cajas.id[indice])
 
         if tid not in personas_estado:
             personas_estado[tid] = nueva_persona(centro_de_caja(caja), fi)
@@ -435,7 +438,7 @@ def procesar_personas(results, cajas_objetos, personas_estado, analizador, fi,
                           SUAVIZADO_CENTRO)
         zona_visita = zona_de_visita(centro, zonas)
 
-        kps_persona = keypoints[i] if keypoints is not None else None
+        kps_persona = keypoints[indice] if keypoints is not None else None
         # Posesion combinada: solape estricto muñeca-caja o producto dentro del
         # radio de alcance. Es la senal "el cliente lleva un producto en la
         # mano" que alimenta el embudo (pick-up y put-back).
@@ -518,21 +521,21 @@ def procesar_personas(results, cajas_objetos, personas_estado, analizador, fi,
             else datos.get("ultima_zona")
         if datos.get("adquirido", False) and not adquirido_antes:
             if zona_contador and zona_contador in analizador.zonas:
-                zz = analizador.zonas[zona_contador]
-                ultimo = zz.get("ultimo_pickup_frame")
+                zona_stats = analizador.zonas[zona_contador]
+                ultimo = zona_stats.get("ultimo_pickup_frame")
                 if ultimo is None or fi - ultimo > VENTANA_DEDUPE_PICKUP:
-                    zz["pick_ups"] += 1
-                    zz["ultimo_pickup_frame"] = fi
+                    zona_stats["pick_ups"] += 1
+                    zona_stats["ultimo_pickup_frame"] = fi
         elif (datos.get("devolviendo", False) and not devolviendo_antes
                 and zona_contador and zona_contador in analizador.zonas):
-            zz = analizador.zonas[zona_contador]
-            ultimo = zz.get("ultimo_putback_frame")
+            zona_stats = analizador.zonas[zona_contador]
+            ultimo = zona_stats.get("ultimo_putback_frame")
             if ultimo is None or fi - ultimo > VENTANA_DEDUPE_PICKUP:
-                zz["put_backs"] += 1
-                zz["ultimo_putback_frame"] = fi
+                zona_stats["put_backs"] += 1
+                zona_stats["ultimo_putback_frame"] = fi
 
-        x1, y1, _, _ = caja
-        etiquetas.append(((int(x1), max(20, int(y1) - 10)),
+        izq, arriba, _, _ = caja
+        etiquetas.append(((int(izq), max(20, int(arriba) - 10)),
                           f"ID:{tid} - {accion}", color))
 
     for tid in [t for t, d in personas_estado.items()

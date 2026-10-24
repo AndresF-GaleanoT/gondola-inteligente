@@ -36,28 +36,28 @@ def main():
                     help="Etiqueta opcional del video (metadato del GT).")
     args = ap.parse_args()
 
-    ruta_m = Path(args.metricas)
-    if not ruta_m.exists():
-        sys.exit(f"Metricas no encontradas: {ruta_m}")
-    with open(ruta_m, encoding="utf-8") as f:
-        metricas = json.load(f)
+    ruta_metricas = Path(args.metricas)
+    if not ruta_metricas.exists():
+        sys.exit(f"Metricas no encontradas: {ruta_metricas}")
+    with open(ruta_metricas, encoding="utf-8") as archivo:
+        metricas = json.load(archivo)
 
     eventos = eventos_detectados(metricas)
     salida = Path(args.out)
     salida.parent.mkdir(parents=True, exist_ok=True)
 
-    gt = {
+    gt_candidato = {
         "video": args.video
         or metricas.get("videofuente")
         or metricas.get("video")
         or "(indica el video aqui)",
         "nota": NOTA.format(out=args.out),
         "eventos": [
-            {"frame": e["frame"], "tipo": e["tipo"], "zona": e.get("zona")}
-            for e in sorted(eventos, key=lambda e: e["frame"])
+            {"frame": evento["frame"], "tipo": evento["tipo"], "zona": evento.get("zona")}
+            for evento in sorted(eventos, key=lambda e: e["frame"])
         ],
     }
-    salida.write_text(json.dumps(gt, ensure_ascii=False, indent=2),
+    salida.write_text(json.dumps(gt_candidato, ensure_ascii=False, indent=2),
                       encoding="utf-8")
 
     print(f"[OK] GT candidato guardado en {salida} ({len(eventos)} eventos).")

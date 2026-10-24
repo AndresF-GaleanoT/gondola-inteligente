@@ -8,9 +8,9 @@
 
 // Gondolas 3D: coordenadas en el mundo del plano (x=ancho, z=profundidad).
 export const GONDOLAS_DEFAULT = [
-  { id: 'Góndola izquierda', x: -6.0, z: 0.0, color: 0xf59e0b, w: 3.2, d: 8.0, h: 1.6 },
-  { id: 'Góndola central', x: 0.0, z: 0.0, color: 0x6366f1, w: 2.6, d: 8.0, h: 1.6 },
-  { id: 'Góndola derecha', x: 6.0, z: 0.0, color: 0x10b981, w: 3.2, d: 8.0, h: 2.2 },
+  { id: 'Góndola izquierda', x: -6.0, z: 0.0, color: 0x16c78c, w: 3.2, d: 8.0, h: 1.6 },
+  { id: 'Góndola central', x: 0.0, z: 0.0, color: 0xffb000, w: 2.6, d: 8.0, h: 1.6 },
+  { id: 'Góndola derecha', x: 6.0, z: 0.0, color: 0xff4545, w: 3.2, d: 8.0, h: 2.2 },
 ];
 
 // Pasillos (calles entre gondolas): mismas coordenadas del render 3D.
@@ -38,8 +38,8 @@ export const LAYOUT_DEFAULT = {
 // Devuelve el area CSS (y el indice de gondola) de una zona segun el layout.
 // Si el layout no declara la zona, cae a un area por indice correlativo.
 export function areaDeZona(zonaId, layout = LAYOUT_DEFAULT, indice = 0) {
-  const m = layout.zonaAGondola.find((z) => z.zona === zonaId);
-  if (m) return { area: m.area, gondola: m.gondola };
+  const mapeo = layout.zonaAGondola.find((z) => z.zona === zonaId);
+  if (mapeo) return { area: mapeo.area, gondola: mapeo.gondola };
   const areas = ['zone-left', 'zone-center', 'zone-right'];
   return { area: areas[indice] || 'zone-left', gondola: indice };
 }

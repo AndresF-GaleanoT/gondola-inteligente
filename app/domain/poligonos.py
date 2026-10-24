@@ -8,50 +8,58 @@ def orientacion(a, b, c):
 
 def segmentos_cruzan(p1, p2, p3, p4):
     """True si los segmentos [p1-p2] y [p3-p4] se cruzan en su interior."""
-    d1 = orientacion(p3, p4, p1)
-    d2 = orientacion(p3, p4, p2)
-    d3 = orientacion(p1, p2, p3)
-    d4 = orientacion(p1, p2, p4)
-    if ((d1 > 0 and d2 < 0) or (d1 < 0 and d2 > 0)) and \
-            ((d3 > 0 and d4 < 0) or (d3 < 0 and d4 > 0)):
-        return True
-    return False
+    signo1 = orientacion(p3, p4, p1)
+    signo2 = orientacion(p3, p4, p2)
+    signo3 = orientacion(p1, p2, p3)
+    signo4 = orientacion(p1, p2, p4)
+    cruzan_ab = (signo1 > 0 and signo2 < 0) or (signo1 < 0 and signo2 > 0)
+    cruzan_cd = (signo3 > 0 and signo4 < 0) or (signo3 < 0 and signo4 > 0)
+    return cruzan_ab and cruzan_cd
 
 
 def es_poligono_valido(pts):
     """Poligono simple (dos o mas aristas no se cruzan) y con area > 0."""
-    n = len(pts)
-    if n < 3:
+    total_vertices = len(pts)
+    if total_vertices < 3:
         return False
-    for i in range(n):
-        a = pts[i]
-        b = pts[(i + 1) % n]
-        for j in range(i + 1, n):
-            c = pts[j]
-            d = pts[(j + 1) % n]
-            if c == a or c == b or d == a or d == b:
+    for indice_a in range(total_vertices):
+        vertice_a = pts[indice_a]
+        vertice_b = pts[(indice_a + 1) % total_vertices]
+        for indice_c in range(indice_a + 1, total_vertices):
+            vertice_c = pts[indice_c]
+            vertice_d = pts[(indice_c + 1) % total_vertices]
+            comparten_vertice = vertice_c in (vertice_a, vertice_b) or vertice_d in (vertice_a, vertice_b)
+            if comparten_vertice:
                 continue
-            if segmentos_cruzan(a, b, c, d):
+            if segmentos_cruzan(vertice_a, vertice_b, vertice_c, vertice_d):
                 return False
-    area = sum(pts[i][0] * pts[(i + 1) % n][1]
-               - pts[(i + 1) % n][0] * pts[i][1] for i in range(n))
-    return abs(area) > 0
+    area_doble = sum(
+        pts[k][0] * pts[(k + 1) % total_vertices][1]
+        - pts[(k + 1) % total_vertices][0] * pts[k][1]
+        for k in range(total_vertices)
+    )
+    return abs(area_doble) > 0
 
 
 def punto_en_poligono(x, y, poligono):
     """True si (x, y) cae dentro del poligono (incluido el borde)."""
-    x = float(x)
-    y = float(y)
-    dentro = False
-    n = len(poligono)
-    for i in range(n):
-        x1, y1 = poligono[i]
-        x2, y2 = poligono[(i + 1) % n]
-        if (y1 > y) != (y2 > y):
-            if x < (x2 - x1) * (y - y1) / (y2 - y1) + x1:
-                dentro = not dentro
-        if min(x1, x2) <= x <= max(x1, x2) and \
-                min(y1, y2) <= y <= max(y1, y2) and \
-                abs((x2 - x1) * (y1 - y) - (x1 - x) * (y2 - y1)) < 1e-9:
+    px = float(x)
+    py = float(y)
+    esta_dentro = False
+    total_vertices = len(poligono)
+    for indice in range(total_vertices):
+        vx1, vy1 = poligono[indice]
+        vx2, vy2 = poligono[(indice + 1) % total_vertices]
+        cruza_altura = (vy1 > py) != (vy2 > py)
+        if cruza_altura:
+            interseccion_x = (vx2 - vx1) * (py - vy1) / (vy2 - vy1) + vx1
+            if px < interseccion_x:
+                esta_dentro = not esta_dentro
+        sobre_el_borde = (
+            min(vx1, vx2) <= px <= max(vx1, vx2)
+            and min(vy1, vy2) <= py <= max(vy1, vy2)
+            and abs((vx2 - vx1) * (vy1 - py) - (vx1 - px) * (vy2 - vy1)) < 1e-9
+        )
+        if sobre_el_borde:
             return True
-    return dentro
+    return esta_dentro

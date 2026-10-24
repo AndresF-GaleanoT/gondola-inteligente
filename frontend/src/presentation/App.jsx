@@ -1,5 +1,5 @@
 // ============================================================================
-// PRESENTATION / App - dashboard unificado (Góndola Inteligente).
+// PRESENTATION / App - dashboard unificado de RetailVision Edge AI.
 // Combina: ZoneEditor + ZoneOverlay (calibración) de frontend/
 // + AnalyticsCharts, AccessibilityPanel, reporte mejorado de frontend_2/
 // ============================================================================
@@ -502,9 +502,9 @@ export default function App() {
       <a className="skip-link" href="#main-content">Saltar al contenido principal</a>
       <aside className="rail" id="main-sidebar" aria-label="Navegación principal">
         <div className="brand">
-          <div className="brand-mark">A</div>
+          <div className="brand-mark">R</div>
           <div className="brand-copy">
-            <strong>AlphaNode</strong>
+            <strong>RetailVision Edge AI</strong>
             <span>RETAIL LAB</span>
           </div>
           <button
@@ -540,7 +540,7 @@ export default function App() {
         <div className="rail-foot">
           <p className="privacy">Privacidad por diseño</p>
           <p>Sin reconocimiento facial, emociones ni datos biométricos.</p>
-          <p>AlphaNode · HackTech 5.0</p>
+          <p>RetailVision Edge AI · HackTech 5.0</p>
         </div>
       </aside>
 
@@ -560,7 +560,7 @@ export default function App() {
           </button>
           <div className="topbar-title">
             <p className="eyebrow">Registro de comportamiento en tienda</p>
-            <h1>Góndola<br />Inteligente</h1>
+            <h1>RetailVision<br />Edge AI</h1>
           </div>
           <div className="edition">
             ANÁLISIS <strong>#GI-001</strong><br />
@@ -821,8 +821,8 @@ export default function App() {
             <div className="report-cover">
               <header className="report-brandbar">
                 <div className="report-brand">
-                  <span>A</span>
-                  <div><strong>AlphaNode</strong><small>RETAIL LAB · HACKTECH 5.0</small></div>
+                  <span>R</span>
+                  <div><strong>RetailVision Edge AI</strong><small>RETAIL LAB · HACKTECH 5.0</small></div>
                 </div>
                 <div className="report-meta">
                   <b>INFORME #GI-001</b>
@@ -957,7 +957,7 @@ export default function App() {
             </section>
 
             <footer className="report-footer">
-              <span>AlphaNode · Góndola Inteligente</span>
+              <span>RetailVision Edge AI</span>
               <span>Scapder · HackTech 5.0 2026</span>
               <span>Privacidad por diseño</span>
             </footer>

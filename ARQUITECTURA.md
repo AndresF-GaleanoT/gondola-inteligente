@@ -1,6 +1,8 @@
-# ARQUITECTURA - Góndola Inteligente (ZoneMetrics)
+# ARQUITECTURA - RetailVision Edge AI (Góndola Inteligente / ZoneMetrics)
 
-Proyecto presentado a **HackTech 5.0** · retail / visibilidad de inventario.
+Proyecto académico — Universidad Santo Tomás, Seccional Tunja (semillero de investigación,
+docente asesor Sergio Arley Puerto Moreno) · originalmente presentado a **HackTech 5.0** ·
+retail / visibilidad de inventario.
 
 > Lectura rápida para el jurado: arquitectura de **capas limpias** (domain puro,
 > use cases de orquestación, adaptadores de infraestructura) con un **pipeline

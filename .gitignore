@@ -51,3 +51,17 @@ models/
 config/zonas_runtime.json
 .pytest_cache/
 
+# Entorno virtual de Python (se recrea con requirements.txt)
+.venv/
+venv/
+env/
+
+# Indice local de la herramienta codebase-memory-mcp (no es parte del repo)
+.codebase-memory/
+
+# Artefactos de compilacion de LaTeX (docs/*.tex se compila localmente)
+docs/*.aux
+docs/*.log
+docs/*.out
+docs/*.toc
+

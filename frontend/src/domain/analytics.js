@@ -3,9 +3,9 @@ import { ZONE_NAME_MAP } from './zones.js';
 const PICK_UP = 'Producto Adquirido';
 const PUT_BACK = 'Devolver el producto';
 
-function number(value) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+function number(valor) {
+  const numerico = Number(valor);
+  return Number.isFinite(numerico) ? numerico : 0;
 }
 
 function visibleZone(rawZone) {
@@ -34,31 +34,31 @@ function personState(person = {}) {
 }
 
 function buildFlows(people) {
-  const links = new Map();
+  const enlaces = new Map();
 
   people.forEach((person) => {
-    const zones = [];
+    const secuenciaZonas = [];
     orderedEvents(person).forEach((event) => {
-      const zone = visibleZone(event.zona);
-      if (zone && zones[zones.length - 1] !== zone) zones.push(zone);
+      const zona = visibleZone(event.zona);
+      if (zona && secuenciaZonas[secuenciaZonas.length - 1] !== zona) secuenciaZonas.push(zona);
     });
 
-    for (let index = 1; index < zones.length; index += 1) {
-      const source = zones[index - 1];
-      const target = zones[index];
-      if (source === target) continue;
-      const key = `${source}::${target}`;
-      links.set(key, {
-        source,
-        target,
-        value: (links.get(key)?.value || 0) + 1,
+    for (let indice = 1; indice < secuenciaZonas.length; indice += 1) {
+      const origen = secuenciaZonas[indice - 1];
+      const destino = secuenciaZonas[indice];
+      if (origen === destino) continue;
+      const clave = `${origen}::${destino}`;
+      enlaces.set(clave, {
+        source: origen,
+        target: destino,
+        value: (enlaces.get(clave)?.value || 0) + 1,
       });
     }
   });
 
-  const flowLinks = [...links.values()];
-  const names = [...new Set(flowLinks.flatMap((link) => [link.source, link.target]))];
-  return { nodes: names.map((name) => ({ name })), links: flowLinks };
+  const listaEnlaces = [...enlaces.values()];
+  const nombres = [...new Set(listaEnlaces.flatMap((enlace) => [enlace.source, enlace.target]))];
+  return { nodes: nombres.map((nombre) => ({ name: nombre })), links: listaEnlaces };
 }
 
 export function buildAnalytics(payload = {}) {

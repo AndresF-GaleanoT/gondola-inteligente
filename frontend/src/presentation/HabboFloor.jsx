@@ -37,7 +37,7 @@ export default function HabboFloor({ onAisles, onGondolas, config }) {
     if (!mount) return undefined;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x111a24);
+    scene.background = new THREE.Color(0x020a06);
 
     // Camara ortografica top-down en angulo (estilo Habbo).
     const contW = () => mount.clientWidth || 600;
@@ -76,19 +76,19 @@ export default function HabboFloor({ onAisles, onGondolas, config }) {
     // Suelo tipo Habbo (cuadricula de baldosas como pasillos/gondola area).
     const suelo = new THREE.Mesh(
       new THREE.BoxGeometry(16, 0.1, 10),
-      new THREE.MeshStandardMaterial({ color: 0x9aa7b4 }),
+      new THREE.MeshStandardMaterial({ color: 0x0b1711 }),
     );
     suelo.position.y = -0.05;
     suelo.receiveShadow = true;
     scene.add(suelo);
 
     // Lineas de cuadricula (baldosas de pasillo).
-    const grid = new THREE.GridHelper(16, 16, 0x213040, 0x213040);
+    const grid = new THREE.GridHelper(16, 16, 0x1f5c3c, 0x163826);
     grid.position.y = 0.02;
     scene.add(grid);
 
     // Dos calles/pasillos marcados como sendas del suelo.
-    const mat_pasillo = new THREE.MeshStandardMaterial({ color: 0xbfcbd7, roughness: 0.9 });
+    const mat_pasillo = new THREE.MeshStandardMaterial({ color: 0x15241a, roughness: 0.9 });
     const pasillo1 = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 8.6), mat_pasillo);
     pasillo1.rotation.x = -Math.PI / 2;
     pasillo1.position.set(-3.3, 0.06, 0);
@@ -123,20 +123,20 @@ export default function HabboFloor({ onAisles, onGondolas, config }) {
       const tctx = txtCanvas.getContext('2d');
 
       // Etiqueta sobria y legible, coherente con el dashboard de analitica.
-      tctx.fillStyle = '#111827';
+      tctx.fillStyle = '#04070a';
       tctx.fillRect(0, 0, tW, tH);
-      tctx.strokeStyle = '#8b83ff';
+      tctx.strokeStyle = '#2bff88';
       tctx.lineWidth = 8;
       tctx.strokeRect(5, 5, tW - 10, tH - 10);
 
       // Fuente auto-ajustada para que el texto nunca se salga de la caja.
       let fontSize = 170;
       for (; fontSize > 24; fontSize -= 2) {
-        tctx.font = `bold ${fontSize}px Arial, sans-serif`;
+        tctx.font = `bold ${fontSize}px 'JetBrains Mono', monospace`;
         if (tctx.measureText(g.id).width <= tW - 60) break;
       }
-      tctx.fillStyle = '#ffffff';
-      tctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      tctx.fillStyle = '#eafff2';
+      tctx.font = `bold ${fontSize}px 'JetBrains Mono', monospace`;
       tctx.textAlign = 'center';
       tctx.textBaseline = 'middle';
       tctx.fillText(g.id, tW / 2, tH / 2);

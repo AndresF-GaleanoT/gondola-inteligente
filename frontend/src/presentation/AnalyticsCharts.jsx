@@ -1,15 +1,20 @@
 import { useMemo } from 'react';
 import EChart from './EChart.jsx';
 
-const COLORS = ['#2f47d7', '#655bd6', '#16815f', '#b77305', '#c44732'];
-const TEXT = '#111318';
-const MUTED = '#60656f';
-const LINE = '#d8d6cc';
+// Paleta sincronizada con los tokens de App.css (neumorfismo claro). Los
+// textos de ECharts no leen CSS custom properties, así que se repiten aquí
+// a mano — si cambia el tema en App.css, estos valores también deben cambiar.
+const PALETA_SERIES = ['#1f9d66', '#c76a00', '#d33b3b', '#2f7fd1', '#d9a300'];
+const COLOR_TEXTO = '#2c3242';
+const COLOR_TENUE = '#5b6478';
+const COLOR_LINEA = '#ccd4e2';
 
-const tooltip = {
-  backgroundColor: '#111318',
-  borderWidth: 0,
-  textStyle: { color: '#fff', fontFamily: 'Arial, sans-serif', fontSize: 12 },
+const tooltipBase = {
+  backgroundColor: '#ffffff',
+  borderWidth: 1,
+  borderColor: COLOR_LINEA,
+  textStyle: { color: COLOR_TEXTO, fontFamily: "'JetBrains Mono', monospace", fontSize: 12 },
+  extraCssText: 'box-shadow: 0 8px 20px rgba(163,177,198,.4);',
 };
 
 function ChartCard({ eyebrow, title, note, children, wide = false }) {
@@ -28,8 +33,8 @@ function ChartCard({ eyebrow, title, note, children, wide = false }) {
 export default function AnalyticsCharts({ analytics, zoneData }) {
   const funnelOption = useMemo(() => ({
     animationDuration: 650,
-    color: COLORS,
-    tooltip: { ...tooltip, trigger: 'item', formatter: '{b}: <b>{c}</b> personas' },
+    color: PALETA_SERIES,
+    tooltip: { ...tooltipBase, trigger: 'item', formatter: '{b}: <b>{c}</b> personas' },
     aria: { enabled: true },
     series: [{
       type: 'funnel',
@@ -41,9 +46,9 @@ export default function AnalyticsCharts({ analytics, zoneData }) {
       maxSize: '100%',
       sort: 'descending',
       gap: 3,
-      label: { show: true, position: 'inside', color: '#fff', fontWeight: 700, formatter: '{b}\n{c}' },
+      label: { show: true, position: 'inside', color: '#fff8ee', fontWeight: 700, formatter: '{b}\n{c}' },
       labelLine: { show: false },
-      itemStyle: { borderColor: '#f6f3e9', borderWidth: 2 },
+      itemStyle: { borderColor: '#e7ecf3', borderWidth: 2 },
       emphasis: { label: { fontSize: 13 } },
       data: analytics.funnel,
     }],
@@ -56,34 +61,34 @@ export default function AnalyticsCharts({ analytics, zoneData }) {
       : 0;
     return {
       animationDuration: 650,
-      color: [COLORS[0]],
-      tooltip: { ...tooltip, trigger: 'axis', valueFormatter: (value) => `${Number(value).toFixed(1)} s` },
+      color: [PALETA_SERIES[0]],
+      tooltip: { ...tooltipBase, trigger: 'axis', valueFormatter: (value) => `${Number(value).toFixed(1)} s` },
       aria: { enabled: true },
       grid: { left: 8, right: 22, top: 18, bottom: 8, containLabel: true },
       xAxis: {
         type: 'value',
         name: 'segundos',
-        nameTextStyle: { color: MUTED },
-        axisLabel: { color: MUTED },
-        splitLine: { lineStyle: { color: LINE, type: 'dashed' } },
+        nameTextStyle: { color: COLOR_TENUE },
+        axisLabel: { color: COLOR_TENUE },
+        splitLine: { lineStyle: { color: COLOR_LINEA, type: 'dashed' } },
       },
       yAxis: {
         type: 'category',
         data: ordered.map((zone) => zone.id),
-        axisLabel: { color: TEXT, width: 115, overflow: 'truncate' },
-        axisLine: { lineStyle: { color: LINE } },
+        axisLabel: { color: COLOR_TEXTO, width: 115, overflow: 'truncate' },
+        axisLine: { lineStyle: { color: COLOR_LINEA } },
         axisTick: { show: false },
       },
       series: [{
         type: 'bar',
         barMaxWidth: 30,
-        data: ordered.map((zone, index) => ({ value: Number(zone.dwell) || 0, itemStyle: { color: COLORS[index % COLORS.length] } })),
-        label: { show: true, position: 'right', color: TEXT, formatter: ({ value }) => `${Number(value).toFixed(1)} s` },
+        data: ordered.map((zone, index) => ({ value: Number(zone.dwell) || 0, itemStyle: { color: PALETA_SERIES[index % PALETA_SERIES.length] } })),
+        label: { show: true, position: 'right', color: COLOR_TEXTO, formatter: ({ value }) => `${Number(value).toFixed(1)} s` },
         markLine: average > 0 ? {
           silent: true,
           symbol: 'none',
-          lineStyle: { color: '#ef5d42', type: 'dashed', width: 1.5 },
-          label: { color: '#a83f2e', formatter: `Promedio ${average.toFixed(1)} s` },
+          lineStyle: { color: '#d33b3b', type: 'dashed', width: 1.5 },
+          label: { color: '#c76a00', formatter: `Promedio ${average.toFixed(1)} s` },
           data: [{ xAxis: average }],
         } : undefined,
       }],
@@ -92,25 +97,25 @@ export default function AnalyticsCharts({ analytics, zoneData }) {
 
   const behaviorOption = useMemo(() => ({
     animationDuration: 650,
-    color: ['#d9d7ce', '#2f47d7', '#ef5d42'],
-    tooltip: { ...tooltip, trigger: 'item', formatter: '{b}: <b>{c}</b> ({d}%)' },
+    color: ['#ccd4e2', '#c76a00', '#1f9d66'],
+    tooltip: { ...tooltipBase, trigger: 'item', formatter: '{b}: <b>{c}</b> ({d}%)' },
     aria: { enabled: true },
-    legend: { bottom: 0, left: 'center', textStyle: { color: MUTED, fontSize: 11 } },
+    legend: { bottom: 0, left: 'center', textStyle: { color: COLOR_TENUE, fontSize: 11 } },
     series: [{
       type: 'pie',
       radius: ['48%', '72%'],
       center: ['50%', '43%'],
       avoidLabelOverlap: true,
-      itemStyle: { borderColor: '#f6f3e9', borderWidth: 3 },
-      label: { color: TEXT, fontWeight: 700, formatter: '{d}%' },
+      itemStyle: { borderColor: '#e7ecf3', borderWidth: 3 },
+      label: { color: COLOR_TEXTO, fontWeight: 700, formatter: '{d}%' },
       data: analytics.behavior,
     }],
   }), [analytics.behavior]);
 
   const sankeyOption = useMemo(() => ({
     animationDuration: 650,
-    color: COLORS,
-    tooltip: { ...tooltip, trigger: 'item' },
+    color: PALETA_SERIES,
+    tooltip: { ...tooltipBase, trigger: 'item' },
     aria: { enabled: true },
     series: [{
       type: 'sankey',
@@ -123,7 +128,7 @@ export default function AnalyticsCharts({ analytics, zoneData }) {
       draggable: false,
       data: analytics.flows.nodes,
       links: analytics.flows.links,
-      label: { color: TEXT, fontWeight: 700, fontSize: 11 },
+      label: { color: COLOR_TEXTO, fontWeight: 700, fontSize: 11 },
       lineStyle: { color: 'gradient', curveness: 0.5, opacity: 0.42 },
       emphasis: { focus: 'adjacency' },
     }],
