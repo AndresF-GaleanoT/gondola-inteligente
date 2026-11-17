@@ -8,12 +8,11 @@
 > tráfico por zona, y recomienda cómo redistribuir la góndola. Todo con **privacidad por diseño**
 > (Ley 1581 de 2012) y procesamiento 100% local.
 
-- **Proyecto académico asociado:** Proyecto de Investigación / Semillero — RetailVision Edge AI
+- **Tipo de desarrollo:** Desarrollo académico grupal
 - **Institución:** Universidad Santo Tomás, Seccional Tunja
 - **Docente asesor:** Sergio Arley Puerto Moreno
 - **Año de creación:** 2026
-- **Origen:** desarrollado originalmente para HackTech 5.0, en proceso de inscripción al Registro
-  de Software Académico de la institución.
+- **Estado:** en proceso de inscripción al Registro de Software Académico de la institución.
 
 ## El problema
 

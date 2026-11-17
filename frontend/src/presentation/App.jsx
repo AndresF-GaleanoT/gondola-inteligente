@@ -540,7 +540,7 @@ export default function App() {
         <div className="rail-foot">
           <p className="privacy">Privacidad por diseño</p>
           <p>Sin reconocimiento facial, emociones ni datos biométricos.</p>
-          <p>RetailVision Edge AI · HackTech 5.0</p>
+          <p>RetailVision Edge AI · 2026</p>
         </div>
       </aside>
 
@@ -822,7 +822,7 @@ export default function App() {
               <header className="report-brandbar">
                 <div className="report-brand">
                   <span>R</span>
-                  <div><strong>RetailVision Edge AI</strong><small>RETAIL LAB · HACKTECH 5.0</small></div>
+                  <div><strong>RetailVision Edge AI</strong><small>RETAIL LAB</small></div>
                 </div>
                 <div className="report-meta">
                   <b>INFORME #GI-001</b>
@@ -958,7 +958,7 @@ export default function App() {
 
             <footer className="report-footer">
               <span>RetailVision Edge AI</span>
-              <span>Scapder · HackTech 5.0 2026</span>
+              <span>Universidad Santo Tomás · 2026</span>
               <span>Privacidad por diseño</span>
             </footer>
           </div>

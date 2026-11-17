@@ -1,10 +1,9 @@
 # ARQUITECTURA - RetailVision Edge AI (Góndola Inteligente / ZoneMetrics)
 
-Proyecto académico — Universidad Santo Tomás, Seccional Tunja (semillero de investigación,
-docente asesor Sergio Arley Puerto Moreno) · originalmente presentado a **HackTech 5.0** ·
-retail / visibilidad de inventario.
+Desarrollo académico grupal — Universidad Santo Tomás, Seccional Tunja (docente asesor
+Sergio Arley Puerto Moreno) · retail / visibilidad de inventario.
 
-> Lectura rápida para el jurado: arquitectura de **capas limpias** (domain puro,
+> Lectura rápida: arquitectura de **capas limpias** (domain puro,
 > use cases de orquestación, adaptadores de infraestructura) con un **pipeline
 > YOLO de detección de gestos** validado contra ground truth, **privacidad por
 > diseño** (Ley 1581 de 2012 – Colombia) y un **dashboard web** de métricas en

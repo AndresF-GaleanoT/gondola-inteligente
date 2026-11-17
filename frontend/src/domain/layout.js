@@ -3,7 +3,7 @@
 // Contrato CONFIGURABLE: las gondolas, pasillos y el vinculo zona->gondola no
 // estan hardcodeados en la UI; se declaran aqui (o se cargan desde un JSON) y
 // el plano 3D + el dashboard los consumen. Asi un mismo codigo sirve para
-// distintos layouts de tienda (respuesta de Scapder: "varia en cada escenario").
+// distintos layouts de tienda (la distribucion varia en cada escenario).
 // ============================================================================
 
 // Gondolas 3D: coordenadas en el mundo del plano (x=ancho, z=profundidad).
